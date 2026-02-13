@@ -2,7 +2,6 @@ import streamlit as st
 import numpy as np
 import random
 import time
-from streamlit_keyup import keyup
 
 # --- 1. CONFIG & CSS (Terminal Look) ---
 st.set_page_config(page_title="AI2026 LAB", layout="wide", initial_sidebar_state="expanded")
@@ -217,17 +216,35 @@ elif agent_type == "Q-Learning":
     st.write(f"The agent learns the **Utility** of actions. $\\alpha={alpha}$ determines how fast new info overrides old. $\\gamma={gamma}$ determines future-sightedness.")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# Keyboard Logic (Manual/Global)
-# We place this before rendering to catch input before display
-action = None
-if agent_type == "Manual":
-    key = keyup("term_keys", label="Terminal Input (Focus)", key_handling="stop", debounce=50)
-    if key == "ArrowUp": action = 0
-    elif key == "ArrowDown": action = 1
-    elif key == "ArrowLeft": action = 2
-    elif key == "ArrowRight": action = 3
+    # Keyboard Logic (JavaScript Injection)
+    # This script listens for keypresses and simulates clicks on the visible buttons below.
+    import streamlit.components.v1 as components
+    
+    js_code = """
+    <script>
+    const doc = window.parent.document;
+    doc.addEventListener('keydown', function(e) {
+        // Map keys to button text content (partial match)
+        let btnToken = null;
+        if (e.key === 'ArrowUp') btnToken = "UP";
+        else if (e.key === 'ArrowDown') btnToken = "DOWN";
+        else if (e.key === 'ArrowLeft') btnToken = "LEFT";
+        else if (e.key === 'ArrowRight') btnToken = "RIGHT";
+        
+        if (btnToken) {
+            const buttons = Array.from(doc.querySelectorAll('button'));
+            const targetBtn = buttons.find(el => el.innerText.includes(btnToken));
+            if (targetBtn) {
+                targetBtn.click();
+            }
+        }
+    });
+    </script>
+    """
+    # Inject the script (invisible)
+    components.html(js_code, height=0, width=0)
 
-# Agent Logic (Auto)
+    st.write("Controls: Use **Arrow Keys** or Buttons below.")
 if agent_type != "Manual":
     if st.button("STEP / RUN"):
         if not env.game_over:
