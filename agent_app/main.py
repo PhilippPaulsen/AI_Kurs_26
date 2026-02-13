@@ -456,12 +456,17 @@ if agent_type != "Manuell":
                 possibles = []
                 for i, (dr, dc) in enumerate([(-1,0), (1,0), (0,-1), (0,1)]):
                     nr, nc = env.agent_pos[0]+dr, env.agent_pos[1]+dc
-                    if (nr, nc) in view:
-                        if env.grid[nr, nc] == 2: possibles.append((i, 100))
-                        elif env.grid[nr, nc] == 1: possibles.append((i, -100))
-                        else: possibles.append((i, 0))
+                    
+                    # Check Bounds
+                    if 0 <= nr < env.height and 0 <= nc < env.width:
+                        if (nr, nc) in view:
+                            if env.grid[nr, nc] == 2: possibles.append((i, 100))
+                            elif env.grid[nr, nc] == 1: possibles.append((i, -100))
+                            else: possibles.append((i, 0))
+                        else:
+                            possibles.append((i, -10)) # Unknown
                     else:
-                        possibles.append((i, -10)) # Unknown is scary but necessary
+                        possibles.append((i, -100)) # Out of bounds = Wall
                 
                 # Filter best moves
                 max_score = max(possibles, key=lambda x: x[1])[1]
