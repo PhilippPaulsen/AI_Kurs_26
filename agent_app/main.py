@@ -5,7 +5,7 @@ import time
 import pandas as pd
 
 # --- 1. CONFIG & CSS (Terminal Look) ---
-st.set_page_config(page_title="AI2026 LAB", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="KI-Labor 2026", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
 <style>
@@ -146,14 +146,14 @@ class QAgent:
         
     def act(self, s):
         if random.random() < self.epsilon:
-            st.session_state.logs.append(f"🎲 **Random** move at {s}")
+            st.session_state.logs.append(f"🎲 **Zufalls-Zug** (Exploration) bei {s}")
             return random.randint(0, 3)
         
         # Grease the wheels: explain greedy
         vals = self.q[s[0], s[1]]
         max_v = np.max(vals)
         action = np.argmax(vals)
-        st.session_state.logs.append(f"🧠 **Greedy** move at {s} (Q={max_v:.2f})")
+        st.session_state.logs.append(f"🧠 **Gieriger Zug** (Exploitation) bei {s} (Q={max_v:.2f})")
         return action
 
     def learn(self, s, r, s_next):
@@ -166,10 +166,10 @@ class QAgent:
         self.q[self.prev_s[0], self.prev_s[1], self.prev_a] = new_q
         
         # Didactic Log
-        actions = ["UP", "DOWN", "LEFT", "RIGHT"]
+        actions = ["OBEN", "UNTEN", "LINKS", "RECHTS"]
         act_str = actions[self.prev_a]
-        log_msg = (f"🎯 **Q-Update** @ {self.prev_s} doing {act_str}:<br>"
-                   f"`Q_new = {old_q:.2f} + {self.alpha} * ({r:.2f} + {self.gamma} * {next_max:.2f} - {old_q:.2f})` "
+        log_msg = (f"🎯 **Q-Update** @ {self.prev_s} Aktion {act_str}:<br>"
+                   f"`Q_neu = {old_q:.2f} + {self.alpha} * ({r:.2f} + {self.gamma} * {next_max:.2f} - {old_q:.2f})` "
                    f"➡️ **{new_q:.3f}**")
         st.session_state.logs.append(log_msg)
         
@@ -178,55 +178,54 @@ class QAgent:
         self.prev_a = a
 
 # --- 3. STATE INITIALIZATION ---
-if 'env' not in st.session_state:
     st.session_state.env = Environment(10, 10, step_penalty=-0.1, goal_reward=100.0)
-    st.session_state.agent_str = "Manual"
+    st.session_state.agent_str = "Manuell"
     st.session_state.logs = []
     st.session_state.q_agent = None
     
     # Performance Stats (Per Agent Type)
     # Structure: {AgentName: {'wins': 0, 'episodes': 0, 'total_steps': 0, 'total_return': 0.0}}
     st.session_state.stats = {
-        "Manual": {'wins': 0, 'episodes': 0, 'total_steps': 0, 'total_return': 0.0},
-        "Simple Reflex": {'wins': 0, 'episodes': 0, 'total_steps': 0, 'total_return': 0.0},
-        "Model-based": {'wins': 0, 'episodes': 0, 'total_steps': 0, 'total_return': 0.0},
+        "Manuell": {'wins': 0, 'episodes': 0, 'total_steps': 0, 'total_return': 0.0},
+        "Reflex-Agent": {'wins': 0, 'episodes': 0, 'total_steps': 0, 'total_return': 0.0},
+        "Modell-basiert": {'wins': 0, 'episodes': 0, 'total_steps': 0, 'total_return': 0.0},
         "Q-Learning": {'wins': 0, 'episodes': 0, 'total_steps': 0, 'total_return': 0.0}
     }
     # Current Episode Tracker
     st.session_state.current_episode = {'steps': 0, 'return': 0.0}
 
 # --- 4. SIDEBAR ---
-st.sidebar.title("LAB CONTROL")
+st.sidebar.title("LABOR STEUERUNG")
 
 # Grid Resizer
-grid_n = st.sidebar.slider("Grid Size N", 5, 20, 10)
+grid_n = st.sidebar.slider("Gittergröße N", 5, 20, 10)
 if grid_n != st.session_state.env.width:
     st.session_state.env = Environment(grid_n, grid_n)
     st.session_state.q_agent = None # Reset Q
 
 # Agent Select
-agent_type = st.sidebar.selectbox("Agent Intelligence", ["Manual", "Simple Reflex", "Model-based", "Q-Learning"])
+agent_type = st.sidebar.selectbox("Agenten Intelligenz", ["Manuell", "Reflex-Agent", "Modell-basiert", "Q-Learning"])
 st.session_state.agent_str = agent_type
 
 # Q-Params (Context Sensitive)
 alpha, gamma, epsilon = 0.5, 0.9, 0.1
 if agent_type == "Q-Learning":
     st.sidebar.markdown("---")
-    st.sidebar.subheader("Hyperparameters")
-    alpha = st.sidebar.slider("Alpha (Learning Rate)", 0.1, 1.0, 0.5, help="Determines how much new information overrides old information.")
-    gamma = st.sidebar.slider("Gamma (Discount)", 0.1, 1.0, 0.9, help="Determines the importance of future rewards.")
-    epsilon = st.sidebar.slider("Epsilon (Exploration)", 0.0, 1.0, 0.1, help="Probability of choosing a random action (Exploration) vs greedy action (Exploitation).")
+    st.sidebar.subheader("Hyperparameter (Lernen)")
+    alpha = st.sidebar.slider("Alpha (Lernrate)", 0.1, 1.0, 0.5, help="Wie stark neue Informationen alte Informationen überschreiben.")
+    gamma = st.sidebar.slider("Gamma (Diskount)", 0.1, 1.0, 0.9, help="Wie wichtig zukünftige Belohnungen gegenüber sofortigen sind.")
+    epsilon = st.sidebar.slider("Epsilon (Exploration)", 0.0, 1.0, 0.1, help="Wahrscheinlichkeit für zufällige Aktionen (Exploration) vs. beste bekannte Aktion (Exploitation).")
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("Simulation Control")
-auto_run = st.sidebar.checkbox("Auto Run", value=False)
-speed = st.sidebar.slider("Speed (Delay in s)", 0.0, 1.0, 0.2)
-fog_enabled = st.sidebar.checkbox("Fog of War", value=True, help="If checked, the agent only sees nearby cells.")
+st.sidebar.subheader("Simulations-Steuerung")
+auto_run = st.sidebar.checkbox("Auto-Lauf (Simulation)", value=False)
+speed = st.sidebar.slider("Geschwindigkeit (Wartezeit in s)", 0.0, 1.0, 0.2)
+fog_enabled = st.sidebar.checkbox("Nebel des Krieges (Fog of War)", value=True, help="Wenn aktiv, sieht der Agent nur benachbarte Felder.")
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("Environment Config")
-env_step_penalty = st.sidebar.slider("Step Penalty", -2.0, 0.0, -0.1, 0.1, help="Reward (negative) for each move.")
-env_goal_reward = st.sidebar.slider("Goal Reward", 10.0, 200.0, 100.0, 10.0, help="Reward for reaching the goal.")
+st.sidebar.subheader("Umgebungs-Konfiguration")
+env_step_penalty = st.sidebar.slider("Schritt-Strafe (Kosten)", -2.0, 0.0, -0.1, 0.1, help="Kosten (negativ) für jeden Schritt.")
+env_goal_reward = st.sidebar.slider("Ziel-Belohnung", 10.0, 200.0, 100.0, 10.0, help="Belohnung für das Erreichen des Ziels.")
 
 if st.sidebar.button("RESET SIMULATION"):
     st.session_state.env = Environment(grid_n, grid_n, step_penalty=env_step_penalty, goal_reward=env_goal_reward)
@@ -237,7 +236,7 @@ if st.sidebar.button("RESET SIMULATION"):
 
 # Stats Display
 st.sidebar.markdown("---")
-with st.sidebar.expander("📊 Performance Stats", expanded=False):
+with st.sidebar.expander("📊 Leistungs-Statistik", expanded=False):
     # Convert stats to DataFrame for nice display
     stats_data = []
     for ag, data in st.session_state.stats.items():
@@ -251,13 +250,13 @@ with st.sidebar.expander("📊 Performance Stats", expanded=False):
             
         stats_data.append({
             "Agent": ag,
-            "Win Rate": f"{win_rate:.1f}%",
-            "Avg Steps": f"{avg_steps:.1f}",
-            "Avg Return": f"{avg_return:.2f}"
+            "Siegrate": f"{win_rate:.1f}%",
+            "Ø Schritte": f"{avg_steps:.1f}",
+            "Ø Return": f"{avg_return:.2f}"
         })
     
     st.dataframe(pd.DataFrame(stats_data).set_index("Agent"), use_container_width=True)
-    if st.button("Clear Stats"):
+    if st.button("Statistik zurücksetzen"):
         for ag in st.session_state.stats:
              st.session_state.stats[ag] = {'wins': 0, 'episodes': 0, 'total_steps': 0, 'total_return': 0.0}
         st.rerun()
@@ -308,7 +307,7 @@ def render_grid_html(env, agent_type, fog_enabled, q_agent=None):
             # Determine Symbol
             if is_visible:
                 # Update Model Memory if Model-based
-                if agent_type == "Model-based": 
+                if agent_type == "Modell-basiert": 
                     env.memory_map[pos] = env.grid[r, c]
 
                 if pos == env.agent_pos: symbol = "🤖"
@@ -322,7 +321,7 @@ def render_grid_html(env, agent_type, fog_enabled, q_agent=None):
             else:
                 # In Fog
                 # Check Memory for Model-Based
-                if agent_type == "Model-based" and pos in env.memory_map:
+                if agent_type == "Modell-basiert" and pos in env.memory_map:
                     val = env.memory_map[pos]
                     if val == 1: symbol = "▒" # Ghost Wall
                     elif val == 2: symbol = "⚐" # Ghost Goal
@@ -355,20 +354,22 @@ env = st.session_state.env
 
 # Didactic Theory Box
 st.markdown('<div class="theory-box">', unsafe_allow_html=True)
-if agent_type == "Manual":
-    st.markdown('<div class="theory-title">MODE: MANUAL CONTROL</div>', unsafe_allow_html=True)
-    st.write("You are the agent. Use the Arrow Keys to navigate the fog. Observe how partial observability affects your pathfinding.")
-elif agent_type == "Simple Reflex":
-    st.markdown('<div class="theory-title">MODE: SIMPLE REFLEX</div>', unsafe_allow_html=True)
-    st.image(r"https://latex.codecogs.com/png.latex?\color{green}\text{Action}(p) = \text{Rules}[\text{State}(p)]")
-    st.write("This agent **reacts** only to the immediate cell via hardcoded rules (If Wall -> Turn). It has NO memory and NO plan. It typically fails in loops.")
-elif agent_type == "Model-based":
-    st.markdown('<div class="theory-title">MODE: MODEL-BASED REFLEX</div>', unsafe_allow_html=True)
-    st.write("This agent maintains an **Internal State** ($S'$). As it explores, it updates its private map of the world, effectively 'clearing' the fog in its mind, even if the sensors can't see far.")
+if agent_type == "Manuell":
+    st.markdown('<div class="theory-title">MODUS: MANUELLE STEUERUNG</div>', unsafe_allow_html=True)
+    st.write("Du bist der Agent. Nutze die Pfeiltasten, um durch den Nebel zu navigieren. Beobachte, wie schwierig es ist, Entscheidungen ohne vollständige Information zu treffen. Dies simuliert die **Partielle Beobachtbarkeit**.")
+elif agent_type == "Reflex-Agent":
+    st.markdown('<div class="theory-title">MODUS: REFLEX-AGENT (Einfach)</div>', unsafe_allow_html=True)
+    st.image(r"https://latex.codecogs.com/png.latex?\color{green}\text{Aktion}(p) = \text{Regel}[\text{Sensor}(p)]")
+    st.write("Dieser Agent **reagiert** nur auf das aktuelle Feld. Er hat KEIN Gedächtnis. Wenn er vor einer Wand steht, dreht er sich um. Er verfängt sich oft in Endlos-Schleifen, da er nicht weiß, wo er schon war.")
+elif agent_type == "Modell-basiert":
+    st.markdown('<div class="theory-title">MODUS: MODELL-BASIERTER REFLEX-AGENT</div>', unsafe_allow_html=True)
+    st.write("Dieser Agent besitzt ein **Internes Modell** ($S'$). Er merkt sich, wo er schon war (Mental Map) und 'lichtet' den Nebel in seinem Gedächtnis. Das erlaubt ihm, effizienter zu suchen und Sackgassen zu vermeiden.")
 elif agent_type == "Q-Learning":
-    st.markdown('<div class="theory-title">MODE: Q-LEARNING (Reinforcement)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="theory-title">MODUS: Q-LEARNING (Verstärkendes Lernen)</div>', unsafe_allow_html=True)
     st.latex(r"Q(s,a) \leftarrow Q(s,a) + \alpha [R + \gamma \max_{a'} Q(s',a') - Q(s,a)]")
-    st.write(f"The agent learns the **Utility** of actions. $\\alpha={alpha}$ determines how fast new info overrides old. $\\gamma={gamma}$ determines future-sightedness.")
+    st.write(f"Der Agent lernt den **Nutzen (Utility)** von Aktionen durch Belohnung ($R$) und Bestrafung. Er baut eine Tabelle (Q-Table) auf, die ihm sagt: 'In Zustand $s$, wie gut ist Aktion $a$?'.")
+    st.write(f"- $\\alpha={alpha}$: **Lernrate**. Wie schnell überschreibt neues Wissen das alte?")
+    st.write(f"- $\\gamma={gamma}$: **Diskount-Faktor**. Wie wichtig sind zukünftige Belohnungen?")
 st.markdown('</div>', unsafe_allow_html=True)
 
 # Keyboard Logic (JavaScript Injection)
@@ -399,33 +400,33 @@ doc.addEventListener('keydown', function(e) {
 # Inject the script (invisible)
 components.html(js_code, height=0, width=0)
 
-st.write("Controls: Use **Arrow Keys** or Buttons below.")
+st.write("Steuerung: Nutze **Pfeiltasten** oder Buttons.")
 
 # Live Metrics
 curr_ep = st.session_state.current_episode
 col_m1, col_m2 = st.columns(2)
-col_m1.metric("Current Steps", curr_ep['steps'])
-col_m2.metric("Current Return", f"{curr_ep['return']:.2f}")
+col_m1.metric("Schritte (Aktuell)", curr_ep['steps'])
+col_m2.metric("Return (Aktuell)", f"{curr_ep['return']:.2f}")
 
 action = None # Initialize action to avoid NameError
 
 # MANUAL INPUT MAPPING
-if agent_type == "Manual":
+if agent_type == "Manuell":
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
-        if st.button("UP ⬆️"): action = 0
+        if st.button("OBEN ⬆️"): action = 0
     col1, col2, col3 = st.columns([1, 1, 1])
     with col1:
-        if st.button("LEFT ⬅️"): action = 2
+        if st.button("LINKS ⬅️"): action = 2
     with col2:
-        if st.button("DOWN ⬇️"): action = 1
+        if st.button("UNTEN ⬇️"): action = 1
     with col3:
-        if st.button("RIGHT ➡️"): action = 3
+        if st.button("RECHTS ➡️"): action = 3
 
 # AUTOMATIC AGENT LOGIC
-if agent_type != "Manual":
+if agent_type != "Manuell":
     steps_to_run = 0
-    if st.button("STEP / RUN"):
+    if st.button("SCHRITT / RUN"):
         steps_to_run = 1
     elif auto_run:
         steps_to_run = 50 
@@ -437,7 +438,7 @@ if agent_type != "Manual":
             if env.game_over: break
             
             # 1. REFLEX
-            if agent_type == "Simple Reflex":
+            if agent_type == "Reflex-Agent":
                 # Dumb rule: Random safe move, bias towards goal if visible
                 view = env.get_fog_view(1)
                 possibles = []
@@ -454,7 +455,7 @@ if agent_type != "Manual":
                 action = possibles[0][0]
             
             # 2. MODEL-BASED
-            elif agent_type == "Model-based":
+            elif agent_type == "Modell-basiert":
                 # Update memory
                 c_view = env.get_fog_view(1)
                 for pos in c_view:
@@ -505,7 +506,7 @@ if agent_type != "Manual":
                      time.sleep(speed)
                      if done: 
                          st.balloons()
-                         st.session_state.logs.append("TERMINUS REACHED.")
+                         st.session_state.logs.append("ZIEL ERREICHT!")
                          
                          # Save Session Stats
                          stat_entry = st.session_state.stats[agent_type]
@@ -525,7 +526,7 @@ if agent_type != "Manual":
              st.rerun()
 
 # MANUAL EXECUTION
-if agent_type == "Manual" and action is not None and not env.game_over:
+if agent_type == "Manuell" and action is not None and not env.game_over:
     next_s, r, done = env.step(action)
     
     # Update Stats
@@ -534,7 +535,7 @@ if agent_type == "Manual" and action is not None and not env.game_over:
     
     if done:
         st.balloons()
-        st.session_state.logs.append("TERMINUS REACHED.")
+        st.session_state.logs.append("ZIEL ERREICHT!")
         
         # Save Session Stats
         stat_entry = st.session_state.stats[agent_type]
@@ -551,24 +552,23 @@ if agent_type == "Manual" and action is not None and not env.game_over:
 # --- 6. RENDERER (ASCII/EMOJI) ---
 
 # Only render the static grid if NOT in auto-run loop (to avoid duplicate rendering or flashing)
-if not (agent_type != "Manual" and auto_run):
+if not (agent_type != "Manuell" and auto_run):
     grid_html = render_grid_html(env, agent_type, fog_enabled, st.session_state.q_agent if agent_type == "Q-Learning" else None)
     st.markdown(grid_html, unsafe_allow_html=True)
 
 # Q-Value Heatmap (Subtitle)
 if agent_type == "Q-Learning" and st.session_state.q_agent:
-    st.write("### Knowledge Map (Max Q)")
+    st.write("### Wissens-Karte (Max Q-Wert)")
     # Render small table/grid
     q_grid = np.max(st.session_state.q_agent.q, axis=2)
-    st.dataframe(pd.DataFrame(q_grid).style.background_gradient(cmap="Greens", axis=None))
     st.dataframe(pd.DataFrame(q_grid).style.background_gradient(cmap="Greens", axis=None))
 
 # --- 7. AGENT THOUGHTS (LOGS) ---
 st.markdown("---")
-with st.expander("🧠 Agent Thoughts (Live Logic)", expanded=True):
+with st.expander("🧠 Agenten Gedanken-Protokoll (Live Logik)", expanded=True):
     # Show last 5 logs reversed
     if st.session_state.logs:
         for log in reversed(st.session_state.logs[-10:]):
             st.markdown(f"- {log}", unsafe_allow_html=True)
     else:
-        st.write("No thoughts yet. Waiting for exploration...")
+        st.write("Noch keine Gedanken. Warte auf Exploration...")
