@@ -442,7 +442,7 @@ if agent_type == "Manual" and action is not None and not env.game_over:
     if done:
         st.balloons()
         st.session_state.logs.append("TERMINUS REACHED.")
-    st.rerun()
+    # Removed st.rerun() to allow balloons to render and grid to update in current frame
 
 # --- 6. RENDERER (ASCII/EMOJI) ---
 
