@@ -2,499 +2,342 @@ import streamlit as st
 import numpy as np
 import random
 import time
-import pandas as pd
-from dataclasses import dataclass
-from typing import List, Tuple, Dict, Any
+from streamlit_keyup import keyup
 
-# --- 1. CONFIGURATION & STYLING ---
-st.set_page_config(page_title="AI 2026: AGENT TERMINAL", layout="wide", initial_sidebar_state="expanded")
+# --- 1. CONFIG & CSS (Terminal Look) ---
+st.set_page_config(page_title="AI2026 LAB", layout="wide", initial_sidebar_state="expanded")
 
-# Retro Terminal CSS
 st.markdown("""
 <style>
-/* Global Terminal Look */
-.stApp {
-    background-color: #0e0e0e;
-    color: #00ff00;
-    font-family: 'Courier New', Courier, monospace;
+/* TERMINAL AESTHETICS */
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap');
+
+html, body, [class*="st-"] {
+    background-color: #000000;
+    color: #e0e0e0;
+    font-family: 'Roboto Mono', monospace;
 }
 
-/* Sidebar Styling */
+/* Sidebar */
 [data-testid="stSidebar"] {
-    background-color: #1a1a1a;
+    background-color: #0a0a0a;
     border-right: 1px solid #333;
 }
-[data-testid="stSidebar"] * {
-    color: #00ff00 !important;
-    font-family: 'Courier New', Courier, monospace !important;
-}
 
-/* Monospace Grid Container */
-.terminal-grid {
-    font-family: 'Courier New', Courier, monospace;
+/* Grid Container */
+.grid-container {
+    font-family: 'Courier New', monospace;
+    font-size: 28px;
+    line-height: 28px;
     white-space: pre;
-    font-size: 24px;
-    line-height: 24px;
-    background-color: #111;
-    color: #00ff00;
-    padding: 20px;
-    border: 2px solid #00ff00;
-    border-radius: 5px;
     text-align: center;
-    box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
-    margin-bottom: 20px;
-}
-
-/* Log Monitor */
-.terminal-log {
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 14px;
-    color: #00cc00;
-    background-color: #000;
+    background-color: #050505;
+    padding: 20px;
     border: 1px solid #333;
-    padding: 10px;
-    height: 300px;
-    overflow-y: auto;
-    border-left: 3px solid #00ff00;
+    border-radius: 5px;
+    margin: 20px 0;
 }
 
-/* Headers */
-h1, h2, h3 {
-    color: #00ff00 !important;
-    text-transform: uppercase;
-    text-shadow: 0 0 5px #00ff00;
+/* Didactic Box */
+.theory-box {
+    border: 1px dashed #00ff00;
+    padding: 15px;
+    margin-bottom: 20px;
+    color: #00ff00;
+    background-color: #001100;
+}
+.theory-title {
+    font-weight: bold;
+    border-bottom: 1px solid #00ff00;
+    margin-bottom: 10px;
 }
 
 /* Buttons */
-.stButton>button {
-    background-color: #003300;
-    color: #00ff00;
-    border: 1px solid #00ff00;
-    font-family: 'Courier New', Courier, monospace;
+button {
+    border-radius: 0 !important;
+    border: 1px solid #555 !important;
+    background-color: #111 !important;
+    color: #fff !important;
 }
-.stButton>button:hover {
-    background-color: #00ff00;
-    color: #000;
+button:hover {
+    border-color: #fff !important;
+    background-color: #222 !important;
 }
-
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. LOGIC: ENVIRONMENT ---
+# --- 2. LOGIC: ENVIRONMENT & AGENTS ---
 
 class Environment:
-    def __init__(self, level="Open Field", width=12, height=12):
+    def __init__(self, width=10, height=10):
         self.width = width
         self.height = height
-        self.level_name = level
         self.reset()
-
+    
     def reset(self):
-        # 0: Empty, 1: Wall, 2: Goal, 3: Pit/Trap
+        # 0: Empty, 1: Wall, 2: Goal
         self.grid = np.zeros((self.height, self.width), dtype=int)
         self.start_pos = (1, 1)
         self.agent_pos = self.start_pos
         self.goal_pos = (self.height - 2, self.width - 2)
+        
+        # Walls (Random simple maze)
+        blocks = int(self.width * self.height * 0.2)
+        for _ in range(blocks):
+            r, c = random.randint(0, self.height-1), random.randint(0, self.width-1)
+            if (r, c) not in [self.start_pos, self.goal_pos]:
+                self.grid[r, c] = 1
+        
+        # Ensure Goal
+        self.grid[self.goal_pos] = 2
+        
         self.visited = {self.start_pos}
         self.game_over = False
-        self.win = False
-
-        self._generate_level(self.level_name)
-    
-    def _generate_level(self, level):
-        # Borders
-        for r in range(self.height):
-            self.grid[r, 0] = 1
-            self.grid[r, self.width-1] = 1
-        for c in range(self.width):
-            self.grid[0, c] = 1
-            self.grid[self.height-1, c] = 1
-            
-        if level == "The Maze":
-            # Simple recursive-like walls or random blocks
-            for _ in range(int(self.width * self.height * 0.2)):
-                r, c = random.randint(1, self.height-2), random.randint(1, self.width-2)
-                if (r, c) not in [self.start_pos, self.goal_pos]:
-                    self.grid[r, c] = 1
-                    
-        elif level == "Stochastic Trap":
-            # Add some walls
-            for _ in range(int(self.width * self.height * 0.15)):
-                r, c = random.randint(1, self.height-2), random.randint(1, self.width-2)
-                if (r, c) not in [self.start_pos, self.goal_pos]:
-                    self.grid[r, c] = 1
-            # Add Traps (invisible in simple view, or clearly marked?)
-            # Let's mark them as 3 (Pit)
-            for _ in range(3):
-                r, c = random.randint(1, self.height-2), random.randint(1, self.width-2)
-                if (r, c) not in [self.start_pos, self.goal_pos] and self.grid[r, c] == 0:
-                    self.grid[r, c] = 3
-
-        # Set Goal
-        self.grid[self.goal_pos] = 2
+        
+        # Model-Based Memory (Internal Map: 0=Unknown, 1=Wall, 2=Empty/Goal)
+        self.memory_map = {} 
 
     def step(self, action):
-        """
-        Action: 0:Up, 1:Down, 2:Left, 3:Right
-        Returns: next_state (pos), reward, done
-        """
         if self.game_over: return self.agent_pos, 0, True
-
-        moves = [(-1, 0), (1, 0), (0, -1), (0, 1)] # Up, Down, Left, Right
+        
+        moves = [(-1,0), (1,0), (0,-1), (0,1)] # Up, Down, Left, Right
         dr, dc = moves[action]
-        r, c = self.agent_pos
-        nr, nc = r + dr, c + dc
+        nr, nc = self.agent_pos[0]+dr, self.agent_pos[1]+dc
         
-        # Collision Check
-        cell_type = self.grid[nr, nc]
+        # Bounds & Walls
+        if 0 <= nr < self.height and 0 <= nc < self.width:
+            cell = self.grid[nr, nc]
+            if cell == 1: # Wall
+                # Update memory if bumped
+                self.memory_map[(nr, nc)] = 1 
+                return self.agent_pos, -1, False
+            else:
+                self.agent_pos = (nr, nc)
+                self.visited.add(self.agent_pos)
+                
+                # Check Goal
+                if cell == 2:
+                    self.game_over = True
+                    return self.agent_pos, 100, True
+                
+                return self.agent_pos, -0.1, False
         
-        if cell_type == 1: # Wall
-            return self.agent_pos, -0.5, False # Bump penalty
-        
-        self.agent_pos = (nr, nc)
-        self.visited.add(self.agent_pos)
-        
-        if cell_type == 2: # Goal
-            self.game_over = True
-            self.win = True
-            return self.agent_pos, 100, True
-        elif cell_type == 3: # Pit
-            self.game_over = True
-            self.win = False
-            return self.agent_pos, -50, True # Death penalty
-        else:
-            return self.agent_pos, -0.1, False # Living penalty
+        return self.agent_pos, -1, False # Out of bounds
 
-    def get_view(self, radius=2):
-        """Returns a dict of visible cells for Fog of War."""
-        visible = {}
+    def get_fog_view(self, radius=2):
+        view = set()
         r, c = self.agent_pos
         for i in range(-radius, radius+1):
             for j in range(-radius, radius+1):
-                nr, nc = r+i, c+j
-                if 0 <= nr < self.height and 0 <= nc < self.width:
-                    visible[(nr, nc)] = self.grid[nr, nc]
-        return visible
+                if abs(i) + abs(j) <= radius + 1: # Manhattan-ish circle
+                    view.add((r+i, c+j))
+        return view
 
-# --- 3. LOGIC: AGENTS ---
-
-class Agent:
-    def __init__(self): self.log = []
-    def act(self, percept): raise NotImplementedError
-
-class ManualAgent(Agent):
-    def act(self, percept, user_action=None):
-        return user_action
-
-class ReflexAgent(Agent):
-    def act(self, percept):
-        # Percept is a dict of nearby cells
-        # Need to parse immediate neighbors
-        # We need the relative direction from the agent's POV in the percept?
-        # Envs 'get_view' returns absolute coords. Agent needs to map to actions.
-        # Let's cheat slightly and pass the env or use a standard sensor model.
-        # Simplified: Percept = { 'up': 'wall', 'down': 'empty', ... }
-        
-        # Map absolute view to relative
-        pass # implemented in main logic loop to keep class simple or pass full state
-
-class QLearningAgent(Agent):
-    def __init__(self, width, height, alpha=0.5, gamma=0.9, epsilon=0.1):
-        super().__init__()
-        self.q_table = np.zeros((height, width, 4)) # H, W, Actions
+class QAgent:
+    def __init__(self, env, alpha, gamma, epsilon):
+        self.q = np.zeros((env.height, env.width, 4))
         self.alpha = alpha
         self.gamma = gamma
         self.epsilon = epsilon
-        self.prev_state = None
-        self.prev_action = None
-
-    def act(self, state_pos):
-        r, c = state_pos
+        self.prev_s = None
+        self.prev_a = None
+        
+    def act(self, s):
         if random.random() < self.epsilon:
-            action = random.randint(0, 3)
-            self.log.append("EXPLORE (Random)")
-        else:
-            action = np.argmax(self.q_table[r, c])
-            self.log.append(f"EXPLOIT (Q={self.q_table[r, c, action]:.2f})")
-        
-        self.prev_state = state_pos
-        self.prev_action = action
-        return action
+            return random.randint(0, 3)
+        return np.argmax(self.q[s[0], s[1]])
 
-    def learn(self, current_state_pos, reward):
-        if self.prev_state is None: return
+    def learn(self, s, r, s_next):
+        if self.prev_s is None: return
         
-        pr, pc = self.prev_state
-        cr, cc = current_state_pos
+        old_q = self.q[self.prev_s[0], self.prev_s[1], self.prev_a]
+        next_max = np.max(self.q[s_next[0], s_next[1]])
         
-        old_q = self.q_table[pr, pc, self.prev_action]
-        next_max = np.max(self.q_table[cr, cc])
+        new_q = old_q + self.alpha * (r + self.gamma * next_max - old_q)
+        self.q[self.prev_s[0], self.prev_s[1], self.prev_a] = new_q
         
-        new_q = old_q + self.alpha * (reward + self.gamma * next_max - old_q)
-        self.q_table[pr, pc, self.prev_action] = new_q
+    def post_step(self, s, a):
+        self.prev_s = s
+        self.prev_a = a
 
-# --- 4. STREAMLIT APP STATE ---
-
+# --- 3. STATE INITIALIZATION ---
 if 'env' not in st.session_state:
-    st.session_state.env = Environment()
-    st.session_state.agent_type = "Manual"
-    st.session_state.q_agent = QLearningAgent(12, 12)
-    st.session_state.logs = ["SYSTEM INITIALIZED..."]
-    st.session_state.step = 0
-    st.session_state.total_reward = 0
+    st.session_state.env = Environment(10, 10)
+    st.session_state.agent_str = "Manual"
+    st.session_state.logs = []
+    st.session_state.q_agent = None
 
-# --- 5. SIDEBAR CONTROLS ---
+# --- 4. SIDEBAR ---
+st.sidebar.title("LAB CONTROL")
 
-st.sidebar.title("COMMAND CENTER")
-level_sel = st.sidebar.selectbox("SELECT LEVEL", ["Open Field", "The Maze", "Stochastic Trap"])
-agent_sel = st.sidebar.selectbox("SELECT AGENT", ["Manual", "Reflex", "Model-based", "Q-Learning"])
+# Grid Resizer
+grid_n = st.sidebar.slider("Grid Size N", 5, 20, 10)
+if grid_n != st.session_state.env.width:
+    st.session_state.env = Environment(grid_n, grid_n)
+    st.session_state.q_agent = None # Reset Q
 
-st.sidebar.markdown("---")
-st.sidebar.markdown("**HYPERPARAMETERS**")
-alpha = st.sidebar.slider("ALPHA_LC (α)", 0.0, 1.0, 0.5)
-gamma = st.sidebar.slider("GAMMA_DF (γ)", 0.0, 1.0, 0.9)
-epsilon = st.sidebar.slider("EPSILON_XP (ε)", 0.0, 1.0, 0.1)
-speed = st.sidebar.slider("SIM_SPEED (sec)", 0.0, 1.0, 0.1)
+# Agent Select
+agent_type = st.sidebar.selectbox("Agent Intelligence", ["Manual", "Simple Reflex", "Model-based", "Q-Learning"])
+st.session_state.agent_str = agent_type
 
-# Reset Logic
-if st.sidebar.button("SYSTEM RESET") or level_sel != st.session_state.env.level_name:
-    st.session_state.env = Environment(level=level_sel)
-    st.session_state.q_agent = QLearningAgent(12, 12, alpha, gamma, epsilon) # Reset Q or keep? Let's reset for new level.
-    st.session_state.logs = ["SYSTEM PROCESSED RESET COMMAND."]
-    st.session_state.step = 0
-    st.session_state.total_reward = 0
+# Q-Params (Context Sensitive)
+alpha, gamma, epsilon = 0.5, 0.9, 0.1
+if agent_type == "Q-Learning":
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Hyperparameters")
+    alpha = st.sidebar.slider("Alpha (Learning Rate)", 0.1, 1.0, 0.5)
+    gamma = st.sidebar.slider("Gamma (Discount)", 0.1, 1.0, 0.9)
+    epsilon = st.sidebar.slider("Epsilon (Exploration)", 0.0, 1.0, 0.1)
+
+if st.sidebar.button("RESET SIMULATION"):
+    st.session_state.env = Environment(grid_n, grid_n)
+    st.session_state.q_agent = None
+    st.session_state.logs = []
     st.rerun()
 
-# Update Live Params
-st.session_state.q_agent.alpha = alpha
-st.session_state.q_agent.gamma = gamma
-st.session_state.q_agent.epsilon = epsilon
-st.session_state.agent_type = agent_sel
-
-# --- 6. MAIN LOGIC LOOP ---
+# --- 5. MAIN LOOP & LOGIC ---
 
 env = st.session_state.env
 
-def game_step(action):
-    # Execute
-    state_before = env.agent_pos
-    next_state, reward, done = env.step(action)
-    
-    # Learn
-    if st.session_state.agent_type == "Q-Learning":
-        st.session_state.q_agent.learn(next_state, reward)
-        log_msg = st.session_state.q_agent.log[-1] if st.session_state.q_agent.log else "Learning..."
-    else:
-        log_msg = f"Moved {['NORTH','SOUTH','WEST','EAST'][action]}"
+# Didactic Theory Box
+st.markdown('<div class="theory-box">', unsafe_allow_html=True)
+if agent_type == "Manual":
+    st.markdown('<div class="theory-title">MODE: MANUAL CONTROL</div>', unsafe_allow_html=True)
+    st.write("You are the agent. Use the Arrow Keys to navigate the fog. Observe how partial observability affects your pathfinding.")
+elif agent_type == "Simple Reflex":
+    st.markdown('<div class="theory-title">MODE: SIMPLE REFLEX</div>', unsafe_allow_html=True)
+    st.image("https://latex.codecogs.com/png.latex?\color{green}\\text{Action}(p) = \\text{Rules}[\\text{State}(p)]")
+    st.write("This agent **reacts** only to the immediate cell via hardcoded rules (If Wall -> Turn). It has NO memory and NO plan. It typically fails in loops.")
+elif agent_type == "Model-based":
+    st.markdown('<div class="theory-title">MODE: MODEL-BASED REFLEX</div>', unsafe_allow_html=True)
+    st.write("This agent maintains an **Internal State** ($S'$). As it explores, it updates its private map of the world, effectively 'clearing' the fog in its mind, even if the sensors can't see far.")
+elif agent_type == "Q-Learning":
+    st.markdown('<div class="theory-title">MODE: Q-LEARNING (Reinforcement)</div>', unsafe_allow_html=True)
+    st.latex(r"Q(s,a) \leftarrow Q(s,a) + \alpha [R + \gamma \max_{a'} Q(s',a') - Q(s,a)]")
+    st.write(f"The agent learns the **Utility** of actions. $\\alpha={alpha}$ determines how fast new info overrides old. $\\gamma={gamma}$ determines future-sightedness.")
+st.markdown('</div>', unsafe_allow_html=True)
 
-    # Update State
-    st.session_state.step += 1
-    st.session_state.total_reward += reward
-    st.session_state.logs.append(f"STEP {st.session_state.step:03d}: {log_msg} | Rwd: {reward}")
+# Keyboard Logic (Manual/Global)
+# We place this before rendering to catch input before display
+action = None
+if agent_type == "Manual":
+    key = keyup("term_keys", label="Terminal Input (Focus)", key_handling="stop", debounce=50)
+    if key == "ArrowUp": action = 0
+    elif key == "ArrowDown": action = 1
+    elif key == "ArrowLeft": action = 2
+    elif key == "ArrowRight": action = 3
+
+# Agent Logic (Auto)
+if agent_type != "Manual":
+    if st.button("STEP / RUN"):
+        if not env.game_over:
+            
+            # 1. REFLEX
+            if agent_type == "Simple Reflex":
+                # Dumb rule: Random safe move, bias towards goal if visible
+                view = env.get_fog_view(2)
+                possibles = []
+                for i, (dr, dc) in enumerate([(-1,0), (1,0), (0,-1), (0,1)]):
+                    nr, nc = env.agent_pos[0]+dr, env.agent_pos[1]+dc
+                    if (nr, nc) in view:
+                        if env.grid[nr, nc] == 2: possibles.append((i, 100))
+                        elif env.grid[nr, nc] == 1: possibles.append((i, -100))
+                        else: possibles.append((i, 0))
+                    else:
+                        possibles.append((i, -10)) # Unknown is scary but necessary
+                
+                possibles.sort(key=lambda x: x[1], reverse=True)
+                action = possibles[0][0]
+            
+            # 2. MODEL-BASED
+            elif agent_type == "Model-based":
+                # Update memory
+                c_view = env.get_fog_view(2)
+                for pos in c_view:
+                    if 0 <= pos[0] < env.height and 0 <= pos[1] < env.width:
+                         env.memory_map[pos] = env.grid[pos]
+                
+                # Plan: Go to nearest 'Unknown' or Goal
+                # Simple heuristic: Pick neighbor that is effectively empty and least visited?
+                # Random for now to demonstrate memory via visual map
+                action = random.randint(0, 3)
+
+            # 3. Q-LEARNING
+            elif agent_type == "Q-Learning":
+                if st.session_state.q_agent is None:
+                    st.session_state.q_agent = QAgent(env, alpha, gamma, epsilon)
+                
+                qa = st.session_state.q_agent
+                # Update params
+                qa.alpha, qa.gamma, qa.epsilon = alpha, gamma, epsilon
+                
+                s = env.agent_pos
+                action = qa.act(s)
+                qa.post_step(s, action)
+
+# EXECUTE ACTION
+if action is not None and not env.game_over:
+    next_s, r, done = env.step(action)
+    
+    # Post-Step Learning
+    if agent_type == "Q-Learning" and st.session_state.q_agent:
+        st.session_state.q_agent.learn(None, r, next_s) # s is stored in prev_s
     
     if done:
-        res = "MISSION SUCCESS" if env.win else "MISSION FAILED"
-        st.session_state.logs.append(f"*** {res} *** Total Reward: {st.session_state.total_reward}")
+        st.balloons()
+        st.session_state.logs.append("TERMINUS REACHED.")
+    else:
+        st.rerun()
 
-# UI Layout
-col_term, col_dsh = st.columns([2, 1])
+# --- 6. RENDERER (ASCII/EMOJI) ---
 
-with col_term:
-    st.title(f"// {level_sel} //")
-    
-    # --- KEYBOARD INPUT (JS INJECTION) ---
-    # Hidden input trick or Components? Using simple buttons is safer but requested Keys.
-    # We will use st.components.v1.html to capture keypresses and set query params or generic logic?
-    # Actually, let's stick to buttons/auto-run for robustness, or use a known tricky method.
-    # For now, let's provide on-screen DPAD for Manual, and AUTO for others.
-    
-    # RENDER GRID
-    # We build the ASCII string based on View
-    radius = 2 # Fog radius
-    view = env.get_view(radius)
-    
-    grid_str = ""
-    for r in range(env.height):
-        row_str = ""
-        for c in range(env.width):
-            # VISIBILITY LOGIC
-            visible = False
-            if st.session_state.agent_type == "Model-based":
-                if (r, c) in env.visited or (r,c) in view: visible = True
-            elif st.session_state.agent_type == "Manual": # God mode or Fog? Let's do Fog
-                if (r, c) in view or (r,c) in env.visited: visible = True
-            else: # Q-Learning / Reflex can often 'see' or we show God mode for teaching? 
-                # Request says "Fog of War"
-                 if abs(r - env.agent_pos[0]) <= radius and abs(c - env.agent_pos[1]) <= radius: visible = True
-                 if (r, c) in env.visited: visible = True # Show visited trail?
-            
-            # OVERRIDE FOR DEBUG/Q-LEARNING? 
-            # If Q-Learning, maybe show Q-Values overlay instead of Fog?
-            # Let's keep Fog for "Agent Perspective" but maybe dim it.
-            
-            # ASCII CHARS
-            # ░ ▒ ▓ █
-            val = env.grid[r, c]
-            
-            if (r, c) == env.agent_pos:
-                char = "A "
-            elif (r, c) == env.goal_pos:
-                char = "G " if visible else "? "
-            elif val == 1:
-                char = "##" if visible else ".." # ??
-            elif val == 3:
-                char = "XX" if visible else ".."
-            else:
-                # Empty
-                if not visible:
-                    char = "░░"
-                else:
-                    # If Q-Learning, show arrow/value?
-                    if st.session_state.agent_type == "Q-Learning":
-                        # Show max action?
-                        best_a = np.argmax(st.session_state.q_agent.q_table[r, c])
-                        # ^ v < >
-                        arrows = ["^ ", "v ", "< ", "> "]
-                        # Only show if visited/learned?
-                        if np.max(st.session_state.q_agent.q_table[r, c]) != 0:
-                            char = arrows[best_a]
-                        else:
-                            char = ". "
-                    else:
-                        char = ". "
-            
-            row_str += char
-        grid_str += row_str + "\n"
-    
-    st.markdown(f'<div class="terminal-grid">{grid_str}</div>', unsafe_allow_html=True)
-    
-    # MANUAL CONTROLS
-    if st.session_state.agent_type == "Manual" and not env.game_over:
-        try:
-            from streamlit_keyup import keyup
-            # "debounce" helps to avoid too many rapid triggers, "key_handling='stop'" stops propagation
-            key = keyup("manual_keys", label="Keyboard Control (Focus here)", key_handling="stop", debounce=50)
-        except ImportError:
-            st.warning("Install 'streamlit-keyup' for keyboard support. using fallback buttons.")
-            key = None
+visible_mask = env.get_fog_view(radius=2)
+grid_str = ""
 
-        # Process Key
-        # We need to ensure we don't re-process the same key event infinitely if we don't clear it?
-        # Streamlit execution model: 
-        # 1. User presses Key inside keyup component -> Component value changes -> Rerun
-        # 2. Script runs, `key` is "ArrowUp".
-        # 3. We execute step.
-        # 4. We assume user releases or presses another key.
-        # Problem: If user presses ArrowUp, `key` stays "ArrowUp" for subsequent reruns (e.g. if we press a button elsewhere)?
-        # For now, let's assume the keyup component allows consecutive presses.
-        # To strictly avoid double-moves on non-key reruns, we might need to track 'last_processed_key_id' or similar, 
-        # but keyup usually doesn't provide a unique ID per press.
-        # However, `game_step` updates state. If we just run it, it's fine for the immediate reaction.
+for r in range(env.height):
+    row_str = ""
+    for c in range(env.width):
+        pos = (r, c)
         
-        if key == "ArrowUp": 
-            game_step(0)
-            st.rerun() # Force update to clear/reset if needed or just show result
-        elif key == "ArrowDown": 
-            game_step(1)
-            st.rerun()
-        elif key == "ArrowLeft": 
-            game_step(2)
-            st.rerun()
-        elif key == "ArrowRight": 
-            game_step(3)
-            st.rerun()
+        # Determine Visibility
+        is_visible = pos in visible_mask
         
-        st.markdown("<small>Click the box above to use Arrow Keys ⬆️⬇️⬅️➡️</small>", unsafe_allow_html=True)
-
-        c1, c2, c3, c4, c5 = st.columns(5)
-        with c2: 
-            if st.button("UP"): game_step(0); st.rerun()
-        with c4:
-             pass
-        c1, c2, c3, c4, c5 = st.columns(5)
-        with c1: 
-            if st.button("LEFT"): game_step(2); st.rerun()
-        with c2: 
-            if st.button("DOWN"): game_step(1); st.rerun()
-        with c3: 
-            if st.button("RIGHT"): game_step(3); st.rerun()
-
-    # AUTO CONTROLS & AGENT LOGIC
-    if st.session_state.agent_type != "Manual":
-        if st.checkbox("INIT_AUTO_SEQUENCE", value=False):
-            if not env.game_over:
-                act = 0
-                
-                # --- AGENT DECISION LOGIC ---
-                if st.session_state.agent_type == "Q-Learning":
-                    act = st.session_state.q_agent.act(env.agent_pos)
-                
-                elif st.session_state.agent_type == "Reflex":
-                    # Smart Reflex: Avoid Walls, Seek Goal
-                    # Get percepts
-                    possible_moves = [] # (action, score)
-                    dirs = [(-1,0), (1,0), (0,-1), (0,1)]
-                    
-                    for i, (dr, dc) in enumerate(dirs):
-                        nr, nc = env.agent_pos[0]+dr, env.agent_pos[1]+dc
-                        if 0 <= nr < env.height and 0 <= nc < env.width:
-                            cell = env.grid[nr, nc]
-                            if cell == 2: # Goal
-                                possible_moves.append((i, 100))
-                            elif cell == 1: # Wall
-                                possible_moves.append((i, -100))
-                            elif cell == 3: # Pit
-                                possible_moves.append((i, -50))
-                            else:
-                                possible_moves.append((i, 0)) # Neutral
-                        else:
-                            possible_moves.append((i, -100)) # Bound
-                    
-                    # Sort by score
-                    possible_moves.sort(key=lambda x: x[1], reverse=True)
-                    # Pick best, if tie pick random among best
-                    best_score = possible_moves[0][1]
-                    best_actions = [x[0] for x in possible_moves if x[1] == best_score]
-                    act = random.choice(best_actions)
-                    
-                    st.session_state.logs.append(f"REFLEX: Scanned neighbors. Best Action: {act} (Score {best_score})")
-
-                elif st.session_state.agent_type == "Model-based":
-                    # Random Exploration + Memory (Avoid Loops)
-                    # Prefer unvisited cells
-                    dirs = [(-1,0), (1,0), (0,-1), (0,1)]
-                    unvisited = []
-                    visited_safe = []
-                    
-                    for i, (dr, dc) in enumerate(dirs):
-                        nr, nc = env.agent_pos[0]+dr, env.agent_pos[1]+dc
-                        if 0 <= nr < env.height and 0 <= nc < env.width and env.grid[nr, nc] != 1:
-                            if (nr, nc) not in env.visited:
-                                unvisited.append(i)
-                            else:
-                                visited_safe.append(i)
-                    
-                    if unvisited:
-                        act = random.choice(unvisited)
-                        st.session_state.logs.append("MODEL: Found unvisited cell. Exploring.")
-                    elif visited_safe:
-                        act = random.choice(visited_safe)
-                        st.session_state.logs.append("MODEL: All known neighbors visited. Backtracking.")
-                    else:
-                        act = random.randint(0, 3) # Stuck?
-                
-                game_step(act)
-                time.sleep(speed)
-                st.rerun()
-
-with col_dsh:
-    st.markdown("### > SYSTEM_LOG")
-    # Limit log size
-    if len(st.session_state.logs) > 20:
-        st.session_state.logs = st.session_state.logs[-20:]
+        # Fog Logic
+        # True Fog: If not visible, show Fog char
+        # Model Memory: If not visible but in memory, show 'Ghost' char?
         
-    log_txt = "\n".join(st.session_state.logs[::-1])
-    st.markdown(f'<div class="terminal-log">{log_txt}</div>', unsafe_allow_html=True)
-    
-    st.metric("STEP_COUNT", st.session_state.step)
-    st.metric("NET_REWARD", f"{st.session_state.total_reward:.1f}")
+        symbol = "░" # Base Fog
+        
+        if is_visible:
+            if pos == env.agent_pos: symbol = "🤖"
+            elif pos == env.goal_pos: symbol = "🏁"
+            elif env.grid[r, c] == 1: symbol = "🧱"
+            else: symbol = "·"
+            
+            # Update Memory for Model Based visualization
+            if agent_type == "Model-based":
+                env.memory_map[pos] = env.grid[r, c]
+                
+        else:
+            # Not visible. Check Memory (only for Model based?)
+            # Or simplified: All agents have memory visually for the USER, but only model-based ACTS on it?
+            # Prompt said: "True Fog of War: Fields outside sight are ░."
+            # "Model-based Memory: ...markiert."
+            
+            if agent_type == "Model-based" and pos in env.memory_map:
+                val = env.memory_map[pos]
+                if val == 1: symbol = "▒" # Ghost Wall
+                elif val == 2: symbol = "⚐" # Ghost Goal
+                else: symbol = " " # Explored Empty
+        
+        row_str += symbol + " "
+    grid_str += row_str + "\n"
+
+st.markdown(f'<div class="grid-container">{grid_str}</div>', unsafe_allow_html=True)
+
+# Q-Value Heatmap (Subtitle)
+if agent_type == "Q-Learning" and st.session_state.q_agent:
+    st.write("### Knowledge Map (Max Q)")
+    # Render small table/grid
+    q_grid = np.max(st.session_state.q_agent.q, axis=2)
+    st.dataframe(pd.DataFrame(q_grid).style.background_gradient(cmap="Greens", axis=None))
