@@ -20,6 +20,8 @@ Um die App lokal zu starten, folgen Sie diesen Schritten im Terminal:
    ```bash
    streamlit run app.py
 
+   https://ai-kurs26-agenten.streamlit.app
+
    🎮 Das Spielfeld (ASCII Grid)
 Die Welt besteht aus einem dynamischen Gitter, das in der App angepasst werden kann:
 

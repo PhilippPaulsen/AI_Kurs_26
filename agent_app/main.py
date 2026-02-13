@@ -3,7 +3,7 @@ import time
 import pandas as pd
 import numpy as np
 import random
-from environment import Grid
+from environment import Grid 
 from agents import ManualAgent, SimpleReflexAgent, ModelBasedReflexAgent, QLearningAgent
 
 # Configure Page
