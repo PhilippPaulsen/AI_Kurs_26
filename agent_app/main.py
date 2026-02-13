@@ -374,6 +374,10 @@ elif agent_type == "Modell-basiert":
     st.write("Dieser Agent besitzt ein **Internes Modell** ($S'$). Er merkt sich, wo er schon war (Mental Map) und 'lichtet' den Nebel in seinem Gedächtnis. Das erlaubt ihm, effizienter zu suchen und Sackgassen zu vermeiden.")
 elif agent_type == "Q-Learning":
     st.markdown('<div class="theory-title">MODUS: Q-LEARNING (Verstärkendes Lernen)</div>', unsafe_allow_html=True)
+    st.markdown("**Die Markov-Eigenschaft:**")
+    st.latex(r"P(S_{t+1}|S_t) = P(S_{t+1}|S_t, S_{t-1}, \dots, S_0)")
+    st.info("Das bedeutet: Die Zukunft hängt **nur** vom aktuellen Zustand ab, nicht von der Vergangenheit. Dem Agenten ist es egal, *wie* er hierher gekommen ist – nur *wo* er jetzt ist, zählt für die nächste Entscheidung.")
+    st.markdown("---")
     st.latex(r"Q(s,a) \leftarrow Q(s,a) + \alpha [R + \gamma \max_{a'} Q(s',a') - Q(s,a)]")
     st.write(f"Der Agent lernt den **Nutzen (Utility)** von Aktionen durch Belohnung ($R$) und Bestrafung. Er baut eine Tabelle (Q-Table) auf, die ihm sagt: 'In Zustand $s$, wie gut ist Aktion $a$?'.")
     st.write(f"- $\\alpha={alpha}$: **Lernrate**. Wie schnell überschreibt neues Wissen das alte?")
