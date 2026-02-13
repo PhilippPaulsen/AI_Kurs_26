@@ -76,11 +76,12 @@ div[data-testid="column"] button {
 # --- 2. LOGIC: ENVIRONMENT & AGENTS ---
 
 class Environment:
-    def __init__(self, width=10, height=10, step_penalty=-0.1, goal_reward=100.0):
+    def __init__(self, width=10, height=10, step_penalty=-0.1, goal_reward=100.0, wall_penalty=-5.0):
         self.width = width
         self.height = height
         self.step_penalty = step_penalty
         self.goal_reward = goal_reward
+        self.wall_penalty = wall_penalty
         self.reset()
     
     def reset(self):
@@ -118,8 +119,9 @@ class Environment:
             cell = self.grid[nr, nc]
             if cell == 1: # Wall
                 # Update memory if bumped
+                # Update memory if bumped
                 self.memory_map[(nr, nc)] = 1 
-                return self.agent_pos, -1, False
+                return self.agent_pos, self.wall_penalty, False
             else:
                 self.agent_pos = (nr, nc)
                 self.visited.add(self.agent_pos)
@@ -203,7 +205,7 @@ class QAgent:
 
 # --- 3. STATE INITIALIZATION ---
 if 'env' not in st.session_state:
-    st.session_state.env = Environment(10, 10, step_penalty=-0.1, goal_reward=100.0)
+    st.session_state.env = Environment(10, 10, step_penalty=-0.1, goal_reward=100.0, wall_penalty=-5.0)
     st.session_state.agent_str = "Manuell"
     st.session_state.logs = []
     st.session_state.q_agent = None
@@ -283,7 +285,7 @@ if agent_type == "Q-Learning":
                 ep_return += r
             
             # Log Stat
-            st.session_state.training_history.append(steps)
+            st.session_state.training_history.append({'episode': ep+1, 'steps': steps, 'reward': ep_return})
             recent_rewards.append(ep_return)
             if len(recent_rewards) > 10: recent_rewards.pop(0)
             
@@ -316,9 +318,11 @@ with st.sidebar.expander("👁️ Current Percept", expanded=True):
 st.sidebar.markdown("---")
 st.sidebar.subheader("Umgebungs-Konfiguration")
 env_step_penalty = st.sidebar.slider("Schritt-Strafe (Kosten)", -2.0, 0.0, -0.1, 0.1, help="Kosten (negativ) für jeden Schritt.")
+env_wall_penalty = st.sidebar.slider("Wand-Strafe (Kollision)", -10.0, -1.0, -5.0, 1.0, help="Strafe (negativ) für das Laufen gegen eine Wand.")
 env_goal_reward = st.sidebar.slider("Ziel-Belohnung", 10.0, 200.0, 100.0, 10.0, help="Belohnung für das Erreichen des Ziels.")
 # Update active environment
 st.session_state.env.step_penalty = env_step_penalty
+st.session_state.env.wall_penalty = env_wall_penalty
 st.session_state.env.goal_reward = env_goal_reward
 
 if st.sidebar.button("Reset Episode (Startpos)"):
@@ -340,7 +344,7 @@ if st.sidebar.button("Brain Reset (Q-Table löschen)"):
 
 if st.sidebar.button("Neues Labyrinth (Full Reset)"):
     # New Maze, New Q-Table
-    st.session_state.env = Environment(grid_n, grid_n, step_penalty=env_step_penalty, goal_reward=env_goal_reward)
+    st.session_state.env = Environment(grid_n, grid_n, step_penalty=env_step_penalty, goal_reward=env_goal_reward, wall_penalty=env_wall_penalty)
     st.session_state.q_agent = None
     st.session_state.logs = []
     st.session_state.current_episode = {'steps': 0, 'return': 0.0}
@@ -633,9 +637,29 @@ if not (agent_type != "Manuell" and auto_run):
 
 # Training Progress Visualization
 if agent_type == "Q-Learning" and st.session_state.training_history:
-    st.write("### 📈 Lern-Fortschritt (Steps pro Episode)")
-    st.line_chart(st.session_state.training_history)
-    st.caption("Ziel: Sinkende Kurve (Konvergenz) -> Der Agent findet den Weg schneller.")
+    st.write("### 📈 Lern-Fortschritt (Reward pro Episode)")
+    
+    # Create DataFrame from history
+    df_history = pd.DataFrame(st.session_state.training_history)
+    
+    # Check if 'reward' column exists (migration support)
+    if 'reward' not in df_history.columns:
+        # Fallback or empty if old format
+        st.warning("Altes Datenformat erkannt. Bitte 'Brain Reset' durchführen.")
+    else:
+        st.line_chart(df_history.set_index("episode")['reward'])
+    st.caption("Ziel: Steigende Kurve -> Der Agent maximiert seine Belohnung.")
+
+# --- LIVE ANALYSIS DIDACTIC BOX ---
+st.markdown("---")
+st.info(f"""
+    **🔍 Live-Analyse:**
+    Der Agent versucht, die Summe aus **Schritt-Strafe** ({st.session_state.env.step_penalty}) 
+    und **Ziel-Belohnung** ({st.session_state.env.goal_reward}) zu maximieren.
+    
+    *Tipp: Eine hohe negative Schritt-Strafe zwingt ihn zur Effizienz (kürzester Weg), 
+    während die Wand-Strafe ({st.session_state.env.wall_penalty}) hilft, Kollisionen schnell zu verlernen.*
+""")
 
 # Q-Value Heatmap (Subtitle)
 if agent_type == "Q-Learning" and st.session_state.q_agent:
