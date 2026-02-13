@@ -178,6 +178,7 @@ class QAgent:
         self.prev_a = a
 
 # --- 3. STATE INITIALIZATION ---
+if 'env' not in st.session_state:
     st.session_state.env = Environment(10, 10, step_penalty=-0.1, goal_reward=100.0)
     st.session_state.agent_str = "Manuell"
     st.session_state.logs = []
@@ -382,10 +383,10 @@ const doc = window.parent.document;
 doc.addEventListener('keydown', function(e) {
     // Map keys to button text content (partial match)
     let btnToken = null;
-    if (e.key === 'ArrowUp') btnToken = "UP";
-    else if (e.key === 'ArrowDown') btnToken = "DOWN";
-    else if (e.key === 'ArrowLeft') btnToken = "LEFT";
-    else if (e.key === 'ArrowRight') btnToken = "RIGHT";
+    if (e.key === 'ArrowUp') btnToken = "OBEN";
+    else if (e.key === 'ArrowDown') btnToken = "UNTEN";
+    else if (e.key === 'ArrowLeft') btnToken = "LINKS";
+    else if (e.key === 'ArrowRight') btnToken = "RECHTS";
     
     if (btnToken) {
         const buttons = Array.from(doc.querySelectorAll('button'));
