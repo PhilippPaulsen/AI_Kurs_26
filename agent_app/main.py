@@ -221,7 +221,7 @@ if 'env' not in st.session_state:
     st.session_state.training_history = []
 
 # --- 4. SIDEBAR ---
-st.sidebar.title("LABOR STEUERUNG (v1.3)")
+
 
 # Grid Resizer
 grid_n = st.sidebar.slider("Gittergröße N", 5, 20, 10)
