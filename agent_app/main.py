@@ -243,9 +243,11 @@ if agent_type == "Q-Learning":
     gamma = st.sidebar.slider("Gamma (Diskount)", 0.1, 1.0, 0.9, help="Diskount-Faktor (0.0 - 1.0). Wichtigkeit zukünftiger Belohnungen. Nahe 1 (z.B. 0.9) fördert langfristiges Planen.")
     epsilon = st.sidebar.slider("Epsilon (Exploration)", 0.0, 1.0, 0.1, help="Explorations-Rate (0.0 - 1.0). Wahrscheinlichkeit für zufällige Züge, um Neues zu entdecken und lokalen Optima zu entkommen.")
     
-    if st.sidebar.button("Train Episodes (50x)"):
+    train_episodes = st.sidebar.slider("Training-Episoden", 1, 500, 50)
+    if st.sidebar.button(f"Train Episodes ({train_episodes}x)"):
         # Training Loop
         progress_bar = st.sidebar.progress(0)
+        status_text = st.sidebar.empty()
         
         # Ensure Agent Exists
         if st.session_state.q_agent is None:
@@ -255,43 +257,14 @@ if agent_type == "Q-Learning":
         # Update params
         qa.alpha, qa.gamma, qa.epsilon = alpha, gamma, epsilon
         
-        for ep in range(50):
-            # Reset Environment but KEEP Q-Table
-            # We need to reuse the existing environment but 'clean' the grid positions? 
-            # Or make a new env with same dimensions?
-            # Better: Reset current env to start pos.
-            st.session_state.env.reset()
-            # Note: Env.reset() randomizes walls too in current implementation.
-            # If we want to learn ONE maze, we should separate 'reset_pos' from 'reset_maze'.
-            # For this simple app, re-randomizing maze makes it harder to learn unless map is static.
-            # Let's Modify Env.reset() logic? 
-            # THE USER REQUEST didn't specify static maze. 
-            # But Q-learning on RANDOM mazes requires state input to include local view, currently state is (r,c).
-            # If maze changes, (r,c) meaning changes. 
-            # IMPLICIT REQUIREMENT for convergence: Maze must be static during training episodes OR state representation must be relative.
-            # For this level of course (AI_Kurs_26), let's make RESET keep the walls if we are training?
-            # Or just let it be. 
-            # Wait, standard Gridworld Q-Learning (Table based on Coord) FAILS if walls move.
-            # So I should PROBABLY keep the walls fixed for the "Train Episodes" loop.
-            
-            # Temporary fix: Don't randomize walls on simple reset if we want to learn 'this' maze?
-            # Current Env.reset() randomizes walls.
-            # Let's stick to the requested task: "Q-Tabelle darf ... nicht gelöscht werden".
-            # If the maze changes, the Q-table (Layout based) becomes invalid.
-            # So effectively we should NOT re-randomize walls every episode for Q-Learning on coordinates.
-            # I will modify Environment.reset to have an option to keep layout.
-            pass
-            
-            # ACTUALLY: The user didn't ask to fix the maze. But if I don't, the graph won't converge. 
-            # I will assume for "Train Episodes", we are training on the CURRENT maze.
-            # But `env.reset()` re-gens walls.
-            # I will perform a 'soft reset' manually here.
-            
+        recent_rewards = []
+
+        for ep in range(train_episodes):
+            # Soft Reset (Keep Walls)
             env = st.session_state.env
             env.agent_pos = env.start_pos
             env.game_over = False
             env.visited = {env.start_pos}
-            # Keep walls!
             
             steps = 0
             ep_return = 0
@@ -311,9 +284,15 @@ if agent_type == "Q-Learning":
             
             # Log Stat
             st.session_state.training_history.append(steps)
-            progress_bar.progress((ep + 1) / 50)
+            recent_rewards.append(ep_return)
+            if len(recent_rewards) > 10: recent_rewards.pop(0)
+            
+            avg_reward = sum(recent_rewards) / len(recent_rewards)
+            
+            progress_bar.progress((ep + 1) / train_episodes)
+            status_text.text(f"Ep {ep+1}/{train_episodes} | Ø Reward (10): {avg_reward:.1f}")
         
-        st.session_state.logs.append(f"✅ **Training abgeschlossen:** 50 Episoden auf aktueller Karte.")
+        st.session_state.logs.append(f"✅ **Training abgeschlossen:** {train_episodes} Episoden.")
         st.rerun()
 
 st.sidebar.markdown("---")
@@ -339,8 +318,25 @@ st.sidebar.subheader("Umgebungs-Konfiguration")
 env_step_penalty = st.sidebar.slider("Schritt-Strafe (Kosten)", -2.0, 0.0, -0.1, 0.1, help="Kosten (negativ) für jeden Schritt.")
 env_goal_reward = st.sidebar.slider("Ziel-Belohnung", 10.0, 200.0, 100.0, 10.0, help="Belohnung für das Erreichen des Ziels.")
 
-if st.sidebar.button("RESET SIMULATION"):
-    # Full Reset including Walls
+if st.sidebar.button("Reset Episode (Startpos)"):
+    # Reset Agent Position, Keep Walls, Keep Q-Table
+    env = st.session_state.env
+    env.agent_pos = env.start_pos
+    env.game_over = False
+    env.visited = {env.start_pos}
+    st.session_state.current_episode = {'steps': 0, 'return': 0.0}
+    st.rerun()
+
+if st.sidebar.button("Brain Reset (Q-Table löschen)"):
+    # Clear Q-Table, Keep Walls (Allow retraining on same map)
+    st.session_state.q_agent = None
+    st.session_state.training_history = []
+    st.session_state.current_episode = {'steps': 0, 'return': 0.0}
+    st.session_state.logs.append("🧠 **Brain Reset:** Alles vergessen!")
+    st.rerun()
+
+if st.sidebar.button("Neues Labyrinth (Full Reset)"):
+    # New Maze, New Q-Table
     st.session_state.env = Environment(grid_n, grid_n, step_penalty=env_step_penalty, goal_reward=env_goal_reward)
     st.session_state.q_agent = None
     st.session_state.logs = []
