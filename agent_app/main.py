@@ -370,9 +370,13 @@ with col_term:
     
     # MANUAL CONTROLS
     if st.session_state.agent_type == "Manual" and not env.game_over:
-        from streamlit_keyup import keyup
-        # "debounce" helps to avoid too many rapid triggers, "key_handling='stop'" stops propagation
-        key = keyup("manual_keys", label="Keyboard Control (Focus here)", key_handling="stop", debounce=50)
+        try:
+            from streamlit_keyup import keyup
+            # "debounce" helps to avoid too many rapid triggers, "key_handling='stop'" stops propagation
+            key = keyup("manual_keys", label="Keyboard Control (Focus here)", key_handling="stop", debounce=50)
+        except ImportError:
+            st.warning("Install 'streamlit-keyup' for keyboard support. using fallback buttons.")
+            key = None
 
         # Process Key
         # We need to ensure we don't re-process the same key event infinitely if we don't clear it?
