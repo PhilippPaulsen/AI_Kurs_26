@@ -166,6 +166,17 @@ if 'env' not in st.session_state:
     st.session_state.agent_str = "Manual"
     st.session_state.logs = []
     st.session_state.q_agent = None
+    
+    # Performance Stats (Per Agent Type)
+    # Structure: {AgentName: {'wins': 0, 'episodes': 0, 'total_steps': 0, 'total_return': 0.0}}
+    st.session_state.stats = {
+        "Manual": {'wins': 0, 'episodes': 0, 'total_steps': 0, 'total_return': 0.0},
+        "Simple Reflex": {'wins': 0, 'episodes': 0, 'total_steps': 0, 'total_return': 0.0},
+        "Model-based": {'wins': 0, 'episodes': 0, 'total_steps': 0, 'total_return': 0.0},
+        "Q-Learning": {'wins': 0, 'episodes': 0, 'total_steps': 0, 'total_return': 0.0}
+    }
+    # Current Episode Tracker
+    st.session_state.current_episode = {'steps': 0, 'return': 0.0}
 
 # --- 4. SIDEBAR ---
 st.sidebar.title("LAB CONTROL")
@@ -199,7 +210,35 @@ if st.sidebar.button("RESET SIMULATION"):
     st.session_state.env = Environment(grid_n, grid_n)
     st.session_state.q_agent = None
     st.session_state.logs = []
+    st.session_state.current_episode = {'steps': 0, 'return': 0.0}
     st.rerun()
+
+# Stats Display
+st.sidebar.markdown("---")
+with st.sidebar.expander("📊 Performance Stats", expanded=False):
+    # Convert stats to DataFrame for nice display
+    stats_data = []
+    for ag, data in st.session_state.stats.items():
+        episodes = data['episodes']
+        if episodes > 0:
+            win_rate = (data['wins'] / episodes) * 100
+            avg_steps = data['total_steps'] / episodes
+            avg_return = data['total_return'] / episodes
+        else:
+            win_rate, avg_steps, avg_return = 0.0, 0.0, 0.0
+            
+        stats_data.append({
+            "Agent": ag,
+            "Win Rate": f"{win_rate:.1f}%",
+            "Avg Steps": f"{avg_steps:.1f}",
+            "Avg Return": f"{avg_return:.2f}"
+        })
+    
+    st.dataframe(pd.DataFrame(stats_data).set_index("Agent"), use_container_width=True)
+    if st.button("Clear Stats"):
+        for ag in st.session_state.stats:
+             st.session_state.stats[ag] = {'wins': 0, 'episodes': 0, 'total_steps': 0, 'total_return': 0.0}
+        st.rerun()
 
 # --- 5. HELPER FUNCTIONS ---
 
@@ -340,6 +379,12 @@ components.html(js_code, height=0, width=0)
 
 st.write("Controls: Use **Arrow Keys** or Buttons below.")
 
+# Live Metrics
+curr_ep = st.session_state.current_episode
+col_m1, col_m2 = st.columns(2)
+col_m1.metric("Current Steps", curr_ep['steps'])
+col_m2.metric("Current Return", f"{curr_ep['return']:.2f}")
+
 action = None # Initialize action to avoid NameError
 
 # MANUAL INPUT MAPPING
@@ -416,6 +461,10 @@ if agent_type != "Manual":
             if action is not None and not env.game_over:
                 next_s, r, done = env.step(action)
                 
+                # Update Stats
+                st.session_state.current_episode['steps'] += 1
+                st.session_state.current_episode['return'] += r
+                
                 # Post-Step Learning
                 if agent_type == "Q-Learning" and st.session_state.q_agent:
                     st.session_state.q_agent.learn(None, r, next_s) # s is stored in prev_s
@@ -425,10 +474,27 @@ if agent_type != "Manual":
                      # Re-render Grid using helper
                      grid_html = render_grid_html(env, agent_type, fog_enabled, st.session_state.q_agent if agent_type == "Q-Learning" else None)
                      placeholder.markdown(grid_html, unsafe_allow_html=True)
+                     
+                     # Update Live Metrics in Loop (requires placeholder or rerun, but rerun breaks loop)
+                     # We can't easily update the 'st.metric' outside without rerun. 
+                     # But we can assume the user sees the final result or we use another placeholder.
+                     # For simplicity, we just run.
+                     
                      time.sleep(speed)
                      if done: 
                          st.balloons()
                          st.session_state.logs.append("TERMINUS REACHED.")
+                         
+                         # Save Session Stats
+                         stat_entry = st.session_state.stats[agent_type]
+                         stat_entry['episodes'] += 1
+                         stat_entry['wins'] += 1 # Only goal triggers done=True with reward 100 in this env usually
+                         stat_entry['total_steps'] += st.session_state.current_episode['steps']
+                         stat_entry['total_return'] += st.session_state.current_episode['return']
+                         
+                         # Reset Current
+                         st.session_state.current_episode = {'steps': 0, 'return': 0.0}
+                         
                          break
 
         # If auto-run is on and game not over, rerun to continue loop
@@ -439,9 +505,25 @@ if agent_type != "Manual":
 # MANUAL EXECUTION
 if agent_type == "Manual" and action is not None and not env.game_over:
     next_s, r, done = env.step(action)
+    
+    # Update Stats
+    st.session_state.current_episode['steps'] += 1
+    st.session_state.current_episode['return'] += r
+    
     if done:
         st.balloons()
         st.session_state.logs.append("TERMINUS REACHED.")
+        
+        # Save Session Stats
+        stat_entry = st.session_state.stats[agent_type]
+        stat_entry['episodes'] += 1
+        stat_entry['wins'] += 1
+        stat_entry['total_steps'] += st.session_state.current_episode['steps']
+        stat_entry['total_return'] += st.session_state.current_episode['return']
+        
+        # Reset Current
+        st.session_state.current_episode = {'steps': 0, 'return': 0.0}
+        
     # Removed st.rerun() to allow balloons to render and grid to update in current frame
 
 # --- 6. RENDERER (ASCII/EMOJI) ---
