@@ -12,7 +12,7 @@ st.markdown("""
 /* TERMINAL AESTHETICS */
 @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap');
 
-html, body, [class*="st-"] {
+html, body, .stApp {
     background-color: #000000;
     color: #e0e0e0;
     font-family: 'Roboto Mono', monospace;
