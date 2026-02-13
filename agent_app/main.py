@@ -239,9 +239,9 @@ alpha, gamma, epsilon = 0.5, 0.9, 0.1
 if agent_type == "Q-Learning":
     st.sidebar.markdown("---")
     st.sidebar.subheader("Hyperparameter (Lernen)")
-    alpha = st.sidebar.slider("Alpha (Lernrate)", 0.1, 1.0, 0.5, help="Wie stark neue Informationen alte Informationen überschreiben.")
-    gamma = st.sidebar.slider("Gamma (Diskount)", 0.1, 1.0, 0.9, help="Wie wichtig zukünftige Belohnungen gegenüber sofortigen sind.")
-    epsilon = st.sidebar.slider("Epsilon (Exploration)", 0.0, 1.0, 0.1, help="Wahrscheinlichkeit für zufällige Aktionen (Exploration) vs. beste bekannte Aktion (Exploitation).")
+    alpha = st.sidebar.slider("Alpha (Lernrate)", 0.1, 1.0, 0.5, help="Lernrate (0.0 - 1.0). Bestimmt, wie stark neue Informationen alte überschreiben (0.5 = balanciert).")
+    gamma = st.sidebar.slider("Gamma (Diskount)", 0.1, 1.0, 0.9, help="Diskount-Faktor (0.0 - 1.0). Wichtigkeit zukünftiger Belohnungen. Nahe 1 (z.B. 0.9) fördert langfristiges Planen.")
+    epsilon = st.sidebar.slider("Epsilon (Exploration)", 0.0, 1.0, 0.1, help="Explorations-Rate (0.0 - 1.0). Wahrscheinlichkeit für zufällige Züge, um Neues zu entdecken und lokalen Optima zu entkommen.")
     
     if st.sidebar.button("Train Episodes (50x)"):
         # Training Loop
@@ -465,12 +465,14 @@ elif agent_type == "Reflex-Agent":
     st.markdown('<div class="theory-title">MODUS: REFLEX-AGENT (Einfach)</div>', unsafe_allow_html=True)
     st.image(r"https://latex.codecogs.com/png.latex?\color{green}\text{Aktion}(p) = \text{Regel}[\text{Sensor}(p)]")
     st.write("Dieser Agent reagiert nur auf sein **Percept**. Er hat KEIN Gedächtnis.")
+    st.caption("Basiert auf der **Markov-Annahme**: Die Entscheidung hängt nur vom aktuellen Wahrnehmungs-Zustand ab.")
 elif agent_type == "Modell-basiert":
     st.markdown('<div class="theory-title">MODUS: MODELL-BASIERTER REFLEX-AGENT</div>', unsafe_allow_html=True)
     st.write("Dieser Agent speichert beobachtete Felder in einer **Internal Map**. Er erinnert sich an Wände und besuchte Orte, auch wenn sie nicht mehr im Percept sind.")
 elif agent_type == "Q-Learning":
     st.markdown('<div class="theory-title">MODUS: Q-LEARNING (Verstärkendes Lernen)</div>', unsafe_allow_html=True)
     st.write("Der Agent lernt durch **Episoden**. Nutze den 'Train Episodes' Button, um das Lernen zu beschleunigen. Beobachte das Konvergenz-Diagramm unten.")
+    st.caption("Modelliert als **Markov Decision Process (MDP)**. Annahme: Der aktuelle Zustand $s$ (Position) enthält alle nötigen Infos (Markov-Eigenschaft).")
 st.markdown('</div>', unsafe_allow_html=True)
 
 # Keyboard Logic (JavaScript Injection)
