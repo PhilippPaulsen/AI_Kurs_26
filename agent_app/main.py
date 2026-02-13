@@ -185,9 +185,15 @@ alpha, gamma, epsilon = 0.5, 0.9, 0.1
 if agent_type == "Q-Learning":
     st.sidebar.markdown("---")
     st.sidebar.subheader("Hyperparameters")
-    alpha = st.sidebar.slider("Alpha (Learning Rate)", 0.1, 1.0, 0.5)
-    gamma = st.sidebar.slider("Gamma (Discount)", 0.1, 1.0, 0.9)
-    epsilon = st.sidebar.slider("Epsilon (Exploration)", 0.0, 1.0, 0.1)
+    alpha = st.sidebar.slider("Alpha (Learning Rate)", 0.1, 1.0, 0.5, help="Determines how much new information overrides old information.")
+    gamma = st.sidebar.slider("Gamma (Discount)", 0.1, 1.0, 0.9, help="Determines the importance of future rewards.")
+    epsilon = st.sidebar.slider("Epsilon (Exploration)", 0.0, 1.0, 0.1, help="Probability of choosing a random action (Exploration) vs greedy action (Exploitation).")
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("Simulation Control")
+auto_run = st.sidebar.checkbox("Auto Run", value=False)
+speed = st.sidebar.slider("Speed (Delay in s)", 0.0, 1.0, 0.2)
+fog_enabled = st.sidebar.checkbox("Fog of War", value=True, help="If checked, the agent only sees nearby cells.")
 
 if st.sidebar.button("RESET SIMULATION"):
     st.session_state.env = Environment(grid_n, grid_n)
@@ -262,8 +268,17 @@ if agent_type == "Manual":
         if st.button("RIGHT ➡️"): action = 3
 
 elif agent_type != "Manual":
+    steps_to_run = 0
     if st.button("STEP / RUN"):
-        if not env.game_over:
+        steps_to_run = 1
+    elif auto_run:
+        steps_to_run = 50 
+    
+    if steps_to_run > 0 and not env.game_over:
+        placeholder = st.empty()
+        
+        for _ in range(steps_to_run):
+            if env.game_over: break
             
             # 1. REFLEX
             if agent_type == "Simple Reflex":
@@ -308,23 +323,57 @@ elif agent_type != "Manual":
                 action = qa.act(s)
                 qa.post_step(s, action)
 
-# EXECUTE ACTION
-if action is not None and not env.game_over:
-    next_s, r, done = env.step(action)
-    
-    # Post-Step Learning
-    if agent_type == "Q-Learning" and st.session_state.q_agent:
-        st.session_state.q_agent.learn(None, r, next_s) # s is stored in prev_s
-    
-    if done:
-        st.balloons()
-        st.session_state.logs.append("TERMINUS REACHED.")
-    else:
-        st.rerun()
+            # EXECUTE ACTION inside the loop
+            if action is not None and not env.game_over:
+                next_s, r, done = env.step(action)
+                
+                # Post-Step Learning
+                if agent_type == "Q-Learning" and st.session_state.q_agent:
+                    st.session_state.q_agent.learn(None, r, next_s) # s is stored in prev_s
+                
+                # Render Loop for Auto-Run
+                if steps_to_run > 1:
+                     # Re-render Grid
+                     visible_mask = env.get_fog_view(radius=2) if fog_enabled else {(r,c) for r in range(env.height) for c in range(env.width)}
+                     grid_str = ""
+                     for r in range(env.height):
+                         row_str = ""
+                         for c in range(env.width):
+                             pos = (r, c)
+                             is_visible = pos in visible_mask
+                             symbol = "░" 
+                             if is_visible:
+                                 if pos == env.agent_pos: symbol = "🤖"
+                                 elif pos == env.goal_pos: symbol = "🏁"
+                                 elif env.grid[r, c] == 1: symbol = "🧱"
+                                 else: symbol = "·"
+                                 if agent_type == "Model-based": env.memory_map[pos] = env.grid[r, c]
+                             else:
+                                 if agent_type == "Model-based" and pos in env.memory_map:
+                                     val = env.memory_map[pos]
+                                     if val == 1: symbol = "▒"
+                                     elif val == 2: symbol = "⚐"
+                                     else: symbol = " "
+                             row_str += symbol + " "
+                         grid_str += row_str + "\n"
+                     
+                     placeholder.markdown(f'<div class="grid-container">{grid_str}</div>', unsafe_allow_html=True)
+                     time.sleep(speed)
+                     if done: 
+                         st.balloons()
+                         st.session_state.logs.append("TERMINUS REACHED.")
+                         break
+                else:
+                    # Single Step Rerun
+                    if done:
+                        st.balloons()
+                        st.session_state.logs.append("TERMINUS REACHED.")
+                    else:
+                        st.rerun()
 
 # --- 6. RENDERER (ASCII/EMOJI) ---
 
-visible_mask = env.get_fog_view(radius=2)
+visible_mask = env.get_fog_view(radius=2) if fog_enabled else {(r,c) for r in range(env.height) for c in range(env.width)}
 grid_str = ""
 
 for r in range(env.height):
@@ -366,7 +415,9 @@ for r in range(env.height):
         row_str += symbol + " "
     grid_str += row_str + "\n"
 
-st.markdown(f'<div class="grid-container">{grid_str}</div>', unsafe_allow_html=True)
+# Only render the static grid if NOT in auto-run loop (to avoid duplicate rendering or flashing)
+if not (agent_type != "Manual" and auto_run):
+    st.markdown(f'<div class="grid-container">{grid_str}</div>', unsafe_allow_html=True)
 
 # Q-Value Heatmap (Subtitle)
 if agent_type == "Q-Learning" and st.session_state.q_agent:
