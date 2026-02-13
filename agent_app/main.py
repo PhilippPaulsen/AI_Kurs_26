@@ -124,12 +124,12 @@ class Environment:
         
         return self.agent_pos, -1, False # Out of bounds
 
-    def get_fog_view(self, radius=2):
+    def get_fog_view(self, radius=1):
         view = set()
         r, c = self.agent_pos
         for i in range(-radius, radius+1):
             for j in range(-radius, radius+1):
-                if abs(i) + abs(j) <= radius + 1: # Manhattan-ish circle
+                if abs(i) + abs(j) <= radius: # Strict Manhattan distance (only adjacent if radius=1)
                     view.add((r+i, c+j))
         return view
 
@@ -200,6 +200,93 @@ if st.sidebar.button("RESET SIMULATION"):
     st.session_state.q_agent = None
     st.session_state.logs = []
     st.rerun()
+
+# --- 5. HELPER FUNCTIONS ---
+
+def render_grid_html(env, agent_type, fog_enabled, q_agent=None):
+    visible_mask = env.get_fog_view(radius=1) if fog_enabled else {(r,c) for r in range(env.height) for c in range(env.width)}
+    
+    # Calculate Max Q for normalization if needed
+    max_q_val = 1.0
+    if q_agent:
+        max_q_val = np.max(q_agent.q) if np.max(q_agent.q) > 0 else 1.0
+
+    grid_str = ""
+    for r in range(env.height):
+        row_str = ""
+        for c in range(env.width):
+            pos = (r, c)
+            is_visible = pos in visible_mask
+            
+            # Base styles
+            style = ""
+            symbol = "░" # Fog default
+            
+            # Q-Learning Visualization (Heatmap)
+            # We want to show Q-values even in Fog for the 'Mind' of the agent? 
+            # Or only observed? Usually Q-values are internal state, so we can show them always or dependent on fog?
+            # Let's show them 'underneath' the fog if we want to debug, but strictly speaking 
+            # purely visual Fog should hide everything. 
+            # BUT: The requirement is "learning should be visible". 
+            # So we will tint the cell based on Q-value if visited/known.
+            
+            q_color = None
+            if q_agent:
+                # Get max Q for this state
+                q_vals = q_agent.q[r, c]
+                best_q = np.max(q_vals)
+                if best_q != 0:
+                    # Simple Green intensity for positive Q
+                    intensity = int(min(255, max(50, (best_q / max_q_val) * 200))) 
+                    # If negative (hitting walls), maybe Red?
+                    if best_q < 0:
+                         q_color = f"rgba(255, 0, 0, 0.3)"
+                    else:
+                         q_color = f"rgba(0, {intensity}, 0, 0.5)"
+
+            # Determine Symbol
+            if is_visible:
+                # Update Model Memory if Model-based
+                if agent_type == "Model-based": 
+                    env.memory_map[pos] = env.grid[r, c]
+
+                if pos == env.agent_pos: symbol = "🤖"
+                elif pos == env.goal_pos: symbol = "🏁"
+                elif env.grid[r, c] == 1: symbol = "🧱"
+                else: symbol = "·"
+                
+                # Apply Q-color background if visible
+                if q_color: style = f"background-color: {q_color};"
+
+            else:
+                # In Fog
+                # Check Memory for Model-Based
+                if agent_type == "Model-based" and pos in env.memory_map:
+                    val = env.memory_map[pos]
+                    if val == 1: symbol = "▒" # Ghost Wall
+                    elif val == 2: symbol = "⚐" # Ghost Goal
+                    else: symbol = "&nbsp;" # Empty Known
+                    style = "color: #555;" # Dimmed for memory
+                
+                # Check Q-Values for Q-Learning (Internal Knowledge is 'clear' to the agent)
+                # If we want to visualize what the agent KNOWS, we should probably show the color even in fog?
+                # Let's show the Q-color in fog but with existing Fog char '░' or '·'?
+                # Better: IF Q-value is non-zero, it means agent has explored there.
+                # So we show the Q-color.
+                elif q_agent and np.max(q_agent.q[r, c]) != 0:
+                     symbol = "·"
+                     if q_color: style = f"background-color: {q_color}; color: #888;"
+
+            # Construct Cell HTML
+            # We need a span to apply style
+            if style:
+                row_str += f'<span style="{style}">{symbol}</span> '
+            else:
+                row_str += symbol + " "
+                
+        grid_str += row_str + "\n"
+    
+    return f'<div class="grid-container">{grid_str}</div>'
 
 # --- 5. MAIN LOOP & LOGIC ---
 
@@ -285,7 +372,7 @@ if agent_type != "Manual":
             # 1. REFLEX
             if agent_type == "Simple Reflex":
                 # Dumb rule: Random safe move, bias towards goal if visible
-                view = env.get_fog_view(2)
+                view = env.get_fog_view(1)
                 possibles = []
                 for i, (dr, dc) in enumerate([(-1,0), (1,0), (0,-1), (0,1)]):
                     nr, nc = env.agent_pos[0]+dr, env.agent_pos[1]+dc
@@ -302,7 +389,7 @@ if agent_type != "Manual":
             # 2. MODEL-BASED
             elif agent_type == "Model-based":
                 # Update memory
-                c_view = env.get_fog_view(2)
+                c_view = env.get_fog_view(1)
                 for pos in c_view:
                     if 0 <= pos[0] < env.height and 0 <= pos[1] < env.width:
                          env.memory_map[pos] = env.grid[pos]
@@ -335,31 +422,9 @@ if agent_type != "Manual":
                 
                 # Render Loop for Auto-Run
                 if steps_to_run > 1:
-                     # Re-render Grid
-                     visible_mask = env.get_fog_view(radius=2) if fog_enabled else {(r,c) for r in range(env.height) for c in range(env.width)}
-                     grid_str = ""
-                     for r in range(env.height):
-                         row_str = ""
-                         for c in range(env.width):
-                             pos = (r, c)
-                             is_visible = pos in visible_mask
-                             symbol = "░" 
-                             if is_visible:
-                                 if pos == env.agent_pos: symbol = "🤖"
-                                 elif pos == env.goal_pos: symbol = "🏁"
-                                 elif env.grid[r, c] == 1: symbol = "🧱"
-                                 else: symbol = "·"
-                                 if agent_type == "Model-based": env.memory_map[pos] = env.grid[r, c]
-                             else:
-                                 if agent_type == "Model-based" and pos in env.memory_map:
-                                     val = env.memory_map[pos]
-                                     if val == 1: symbol = "▒"
-                                     elif val == 2: symbol = "⚐"
-                                     else: symbol = " "
-                             row_str += symbol + " "
-                         grid_str += row_str + "\n"
-                     
-                     placeholder.markdown(f'<div class="grid-container">{grid_str}</div>', unsafe_allow_html=True)
+                     # Re-render Grid using helper
+                     grid_html = render_grid_html(env, agent_type, fog_enabled, st.session_state.q_agent if agent_type == "Q-Learning" else None)
+                     placeholder.markdown(grid_html, unsafe_allow_html=True)
                      time.sleep(speed)
                      if done: 
                          st.balloons()
@@ -381,51 +446,10 @@ if agent_type == "Manual" and action is not None and not env.game_over:
 
 # --- 6. RENDERER (ASCII/EMOJI) ---
 
-visible_mask = env.get_fog_view(radius=2) if fog_enabled else {(r,c) for r in range(env.height) for c in range(env.width)}
-grid_str = ""
-
-for r in range(env.height):
-    row_str = ""
-    for c in range(env.width):
-        pos = (r, c)
-        
-        # Determine Visibility
-        is_visible = pos in visible_mask
-        
-        # Fog Logic
-        # True Fog: If not visible, show Fog char
-        # Model Memory: If not visible but in memory, show 'Ghost' char?
-        
-        symbol = "░" # Base Fog
-        
-        if is_visible:
-            if pos == env.agent_pos: symbol = "🤖"
-            elif pos == env.goal_pos: symbol = "🏁"
-            elif env.grid[r, c] == 1: symbol = "🧱"
-            else: symbol = "·"
-            
-            # Update Memory for Model Based visualization
-            if agent_type == "Model-based":
-                env.memory_map[pos] = env.grid[r, c]
-                
-        else:
-            # Not visible. Check Memory (only for Model based?)
-            # Or simplified: All agents have memory visually for the USER, but only model-based ACTS on it?
-            # Prompt said: "True Fog of War: Fields outside sight are ░."
-            # "Model-based Memory: ...markiert."
-            
-            if agent_type == "Model-based" and pos in env.memory_map:
-                val = env.memory_map[pos]
-                if val == 1: symbol = "▒" # Ghost Wall
-                elif val == 2: symbol = "⚐" # Ghost Goal
-                else: symbol = " " # Explored Empty
-        
-        row_str += symbol + " "
-    grid_str += row_str + "\n"
-
 # Only render the static grid if NOT in auto-run loop (to avoid duplicate rendering or flashing)
 if not (agent_type != "Manual" and auto_run):
-    st.markdown(f'<div class="grid-container">{grid_str}</div>', unsafe_allow_html=True)
+    grid_html = render_grid_html(env, agent_type, fog_enabled, st.session_state.q_agent if agent_type == "Q-Learning" else None)
+    st.markdown(grid_html, unsafe_allow_html=True)
 
 # Q-Value Heatmap (Subtitle)
 if agent_type == "Q-Learning" and st.session_state.q_agent:
