@@ -463,8 +463,10 @@ if agent_type != "Manuell":
                     else:
                         possibles.append((i, -10)) # Unknown is scary but necessary
                 
-                possibles.sort(key=lambda x: x[1], reverse=True)
-                action = possibles[0][0]
+                # Filter best moves
+                max_score = max(possibles, key=lambda x: x[1])[1]
+                best_moves = [move for move, score in possibles if score == max_score]
+                action = random.choice(best_moves)
             
             # 2. MODEL-BASED
             elif agent_type == "Modell-basiert":
