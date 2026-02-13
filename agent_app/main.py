@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 import random
 import time
+import pandas as pd
 
 # --- 1. CONFIG & CSS (Terminal Look) ---
 st.set_page_config(page_title="AI2026 LAB", layout="wide", initial_sidebar_state="expanded")
