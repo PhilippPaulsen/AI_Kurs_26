@@ -133,7 +133,7 @@ class Environment:
         
         return self.agent_pos, -1, False # Out of bounds
 
-    def get_percept_view(self, radius=2):
+    def get_percept_view(self, radius=1):
         view = set()
         r, c = self.agent_pos
         for i in range(-radius, radius+1):
@@ -320,15 +320,19 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("Simulations-Steuerung")
 auto_run = st.sidebar.checkbox("Auto-Lauf (Simulation)", value=False)
 speed = st.sidebar.slider("Geschwindigkeit (Wartezeit in s)", 0.0, 1.0, 0.2)
-percept_enabled = st.sidebar.checkbox("Percept Field (Sichtfeld)", value=True, help="Wenn aktiv, sieht der Agent nur benachbarte Felder (Radius 2).")
+percept_enabled = st.sidebar.checkbox("Percept Field (Sichtfeld)", value=True, help="Wenn aktiv, sieht der Agent nur benachbarte Felder (Radius 1).")
 
 # NEW: Current Percept Expander
 with st.sidebar.expander("👁️ Current Percept", expanded=True):
     percepts = st.session_state.env.get_current_percept_text()
-    st.markdown(f"**UP:** `{percepts['UP']}`")
-    st.markdown(f"**DOWN:** `{percepts['DOWN']}`")
-    st.markdown(f"**LEFT:** `{percepts['LEFT']}`")
-    st.markdown(f"**RIGHT:** `{percepts['RIGHT']}`")
+    # Compact 2-Column Layout
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write(f"⬆️ `{percepts['UP']}`")
+        st.write(f"⬅️ `{percepts['LEFT']}`")
+    with col2:
+        st.write(f"⬇️ `{percepts['DOWN']}`")
+        st.write(f"➡️ `{percepts['RIGHT']}`")
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("Umgebungs-Konfiguration")
@@ -374,8 +378,8 @@ with st.sidebar.expander("📊 Leistungs-Statistik", expanded=False):
 # --- 5. HELPER FUNCTIONS ---
 
 def render_grid_html(env, agent_type, percept_enabled, q_agent=None):
-    # Radius 2 for Percept
-    visible_mask = env.get_percept_view(radius=2) if percept_enabled else {(r,c) for r in range(env.height) for c in range(env.width)}
+    # Radius 1 for Percept
+    visible_mask = env.get_percept_view(radius=1) if percept_enabled else {(r,c) for r in range(env.height) for c in range(env.width)}
     
     # Calculate Max Q for normalization if needed
     max_q_val = 1.0
@@ -456,7 +460,7 @@ env = st.session_state.env
 st.markdown('<div class="theory-box">', unsafe_allow_html=True)
 if agent_type == "Manuell":
     st.markdown('<div class="theory-title">MODUS: MANUELLE STEUERUNG</div>', unsafe_allow_html=True)
-    st.write("Du bist der Agent. Das **Percept Field** ist dein Sichtbereich (Radius 2). Außerhalb davon ist alles 'Unobserved' (░).")
+    st.write("Du bist der Agent. Das **Percept Field** ist dein Sichtbereich (Radius 1). Außerhalb davon ist alles 'Unobserved' (░).")
 elif agent_type == "Reflex-Agent":
     st.markdown('<div class="theory-title">MODUS: REFLEX-AGENT (Einfach)</div>', unsafe_allow_html=True)
     st.image(r"https://latex.codecogs.com/png.latex?\color{green}\text{Aktion}(p) = \text{Regel}[\text{Sensor}(p)]")
@@ -535,7 +539,7 @@ if agent_type != "Manuell":
             
             # 1. REFLEX
             if agent_type == "Reflex-Agent":
-                view = env.get_percept_view(2) # Uses Percept
+                view = env.get_percept_view(1) # Uses Percept
                 possibles = []
                 for i, (dr, dc) in enumerate([(-1,0), (1,0), (0,-1), (0,1)]):
                     nr, nc = env.agent_pos[0]+dr, env.agent_pos[1]+dc
@@ -556,7 +560,7 @@ if agent_type != "Manuell":
             
             # 2. MODEL-BASED
             elif agent_type == "Modell-basiert":
-                c_view = env.get_percept_view(2)
+                c_view = env.get_percept_view(1)
                 for pos in c_view:
                     if 0 <= pos[0] < env.height and 0 <= pos[1] < env.width:
                          env.memory_map[pos] = env.grid[pos]
