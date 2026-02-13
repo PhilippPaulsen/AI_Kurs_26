@@ -255,6 +255,7 @@ st.write("Controls: Use **Arrow Keys** or Buttons below.")
 
 action = None # Initialize action to avoid NameError
 
+# MANUAL INPUT MAPPING
 if agent_type == "Manual":
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
@@ -267,7 +268,8 @@ if agent_type == "Manual":
     with col3:
         if st.button("RIGHT ➡️"): action = 3
 
-elif agent_type != "Manual":
+# AUTOMATIC AGENT LOGIC
+if agent_type != "Manual":
     steps_to_run = 0
     if st.button("STEP / RUN"):
         steps_to_run = 1
@@ -323,7 +325,7 @@ elif agent_type != "Manual":
                 action = qa.act(s)
                 qa.post_step(s, action)
 
-            # EXECUTE ACTION inside the loop
+            # EXECUTE ACTION inside the loop (only for auto-run agents)
             if action is not None and not env.game_over:
                 next_s, r, done = env.step(action)
                 
@@ -363,13 +365,19 @@ elif agent_type != "Manual":
                          st.balloons()
                          st.session_state.logs.append("TERMINUS REACHED.")
                          break
-                else:
-                    # Single Step Rerun
-                    if done:
-                        st.balloons()
-                        st.session_state.logs.append("TERMINUS REACHED.")
-                    else:
-                        st.rerun()
+
+        # If auto-run is on and game not over, rerun to continue loop
+        if auto_run and not env.game_over:
+             time.sleep(speed)
+             st.rerun()
+
+# MANUAL EXECUTION
+if agent_type == "Manual" and action is not None and not env.game_over:
+    next_s, r, done = env.step(action)
+    if done:
+        st.balloons()
+        st.session_state.logs.append("TERMINUS REACHED.")
+    st.rerun()
 
 # --- 6. RENDERER (ASCII/EMOJI) ---
 
