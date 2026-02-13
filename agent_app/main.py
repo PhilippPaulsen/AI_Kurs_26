@@ -413,16 +413,20 @@ action = None # Initialize action to avoid NameError
 
 # MANUAL INPUT MAPPING
 if agent_type == "Manuell":
-    col1, col2, col3 = st.columns([1, 1, 1])
-    with col2:
-        if st.button("OBEN ⬆️"): action = 0
-    col1, col2, col3 = st.columns([1, 1, 1])
-    with col1:
-        if st.button("LINKS ⬅️"): action = 2
-    with col2:
-        if st.button("UNTEN ⬇️"): action = 1
-    with col3:
-        if st.button("RECHTS ➡️"): action = 3
+    # Compact Centered Layout
+    # Up Button
+    _, col_up, _ = st.columns([6, 1, 6])
+    with col_up:
+        if st.button("OBEN ⬆️", key="btn_up", use_container_width=True): action = 0
+            
+    # Left, Down, Right Buttons
+    _, col_left, col_down, col_right, _ = st.columns([5, 1, 1, 1, 5])
+    with col_left:
+        if st.button("LINKS ⬅️", key="btn_left", use_container_width=True): action = 2
+    with col_down:
+        if st.button("UNTEN ⬇️", key="btn_down", use_container_width=True): action = 1
+    with col_right:
+        if st.button("RECHTS ➡️", key="btn_right", use_container_width=True): action = 3
 
 # AUTOMATIC AGENT LOGIC
 if agent_type != "Manuell":
@@ -517,7 +521,9 @@ if agent_type != "Manuell":
                          stat_entry['total_return'] += st.session_state.current_episode['return']
                          
                          # Reset Current
-                         st.session_state.current_episode = {'steps': 0, 'return': 0.0}
+                         # DIDACTIC CHANGE: Do NOT reset immediately so user sees the final score (return).
+                         # It will be reset on next 'Reset' or 'Grid Change'.
+                         # st.session_state.current_episode = {'steps': 0, 'return': 0.0}
                          
                          break
 
@@ -546,7 +552,8 @@ if agent_type == "Manuell" and action is not None and not env.game_over:
         stat_entry['total_return'] += st.session_state.current_episode['return']
         
         # Reset Current
-        st.session_state.current_episode = {'steps': 0, 'return': 0.0}
+        # DIDACTIC CHANGE: Do NOT reset immediately so user sees the final score.
+        # st.session_state.current_episode = {'steps': 0, 'return': 0.0}
         
     # Removed st.rerun() to allow balloons to render and grid to update in current frame
 
