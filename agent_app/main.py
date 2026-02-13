@@ -317,6 +317,9 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("Umgebungs-Konfiguration")
 env_step_penalty = st.sidebar.slider("Schritt-Strafe (Kosten)", -2.0, 0.0, -0.1, 0.1, help="Kosten (negativ) für jeden Schritt.")
 env_goal_reward = st.sidebar.slider("Ziel-Belohnung", 10.0, 200.0, 100.0, 10.0, help="Belohnung für das Erreichen des Ziels.")
+# Update active environment
+st.session_state.env.step_penalty = env_step_penalty
+st.session_state.env.goal_reward = env_goal_reward
 
 if st.sidebar.button("Reset Episode (Startpos)"):
     # Reset Agent Position, Keep Walls, Keep Q-Table
