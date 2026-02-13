@@ -133,14 +133,32 @@ class Environment:
         
         return self.agent_pos, -1, False # Out of bounds
 
-    def get_fog_view(self, radius=1):
+    def get_percept_view(self, radius=2):
         view = set()
         r, c = self.agent_pos
         for i in range(-radius, radius+1):
             for j in range(-radius, radius+1):
-                if abs(i) + abs(j) <= radius: # Strict Manhattan distance (only adjacent if radius=1)
+                if abs(i) + abs(j) <= radius: # Strict Manhattan distance
                     view.add((r+i, c+j))
         return view
+        
+    def get_current_percept_text(self):
+        # Didactic: Textual description of immediate neighbors
+        r, c = self.agent_pos
+        percepts = {}
+        # Order: Up, Down, Left, Right
+        directions = {(-1,0): "UP", (1,0): "DOWN", (0,-1): "LEFT", (0,1): "RIGHT"}
+        
+        for (dr, dc), label in directions.items():
+            nr, nc = r+dr, c+dc
+            if 0 <= nr < self.height and 0 <= nc < self.width:
+                val = self.grid[nr, nc]
+                if val == 1: percepts[label] = "WALL"
+                elif val == 2: percepts[label] = "GOAL"
+                else: percepts[label] = "EMPTY"
+            else:
+                percepts[label] = "BOUNDARY"
+        return percepts
 
 class QAgent:
     def __init__(self, env, alpha, gamma, epsilon):
@@ -153,14 +171,13 @@ class QAgent:
         
     def act(self, s):
         if random.random() < self.epsilon:
-            st.session_state.logs.append(f"🎲 **Zufalls-Zug** (Exploration) bei {s}")
+            # st.session_state.logs.append(f"🎲 **Zufalls-Zug** (Exploration) bei {s}")
             return random.randint(0, 3)
         
-        # Grease the wheels: explain greedy
         vals = self.q[s[0], s[1]]
         max_v = np.max(vals)
         action = np.argmax(vals)
-        st.session_state.logs.append(f"🧠 **Gieriger Zug** (Exploitation) bei {s} (Q={max_v:.2f})")
+        # st.session_state.logs.append(f"🧠 **Gieriger Zug** (Exploitation) bei {s} (Q={max_v:.2f})")
         return action
 
     def learn(self, s, r, s_next):
@@ -172,13 +189,13 @@ class QAgent:
         new_q = old_q + self.alpha * (r + self.gamma * next_max - old_q)
         self.q[self.prev_s[0], self.prev_s[1], self.prev_a] = new_q
         
-        # Didactic Log
-        actions = ["OBEN", "UNTEN", "LINKS", "RECHTS"]
-        act_str = actions[self.prev_a]
-        log_msg = (f"🎯 **Q-Update** @ {self.prev_s} Aktion {act_str}:<br>"
-                   f"`Q_neu = {old_q:.2f} + {self.alpha} * ({r:.2f} + {self.gamma} * {next_max:.2f} - {old_q:.2f})` "
-                   f"➡️ **{new_q:.3f}**")
-        st.session_state.logs.append(log_msg)
+        # Didactic Log (Only log occasionally or detailed mode?)
+        # actions = ["OBEN", "UNTEN", "LINKS", "RECHTS"]
+        # act_str = actions[self.prev_a]
+        # log_msg = (f"🎯 **Q-Update** @ {self.prev_s} Aktion {act_str}:<br>"
+        #            f"`Q_neu = {old_q:.2f} + {self.alpha} * ({r:.2f} + {self.gamma} * {next_max:.2f} - {old_q:.2f})` "
+        #            f"➡️ **{new_q:.3f}**")
+        # st.session_state.logs.append(log_msg)
         
     def post_step(self, s, a):
         self.prev_s = s
@@ -192,7 +209,6 @@ if 'env' not in st.session_state:
     st.session_state.q_agent = None
     
     # Performance Stats (Per Agent Type)
-    # Structure: {AgentName: {'wins': 0, 'episodes': 0, 'total_steps': 0, 'total_return': 0.0}}
     st.session_state.stats = {
         "Manuell": {'wins': 0, 'episodes': 0, 'total_steps': 0, 'total_return': 0.0},
         "Reflex-Agent": {'wins': 0, 'episodes': 0, 'total_steps': 0, 'total_return': 0.0},
@@ -201,15 +217,18 @@ if 'env' not in st.session_state:
     }
     # Current Episode Tracker
     st.session_state.current_episode = {'steps': 0, 'return': 0.0}
+    # Training History for Q-Learning
+    st.session_state.training_history = []
 
 # --- 4. SIDEBAR ---
-st.sidebar.title("LABOR STEUERUNG (v1.2)")
+st.sidebar.title("LABOR STEUERUNG (v1.3)")
 
 # Grid Resizer
 grid_n = st.sidebar.slider("Gittergröße N", 5, 20, 10)
 if grid_n != st.session_state.env.width:
     st.session_state.env = Environment(grid_n, grid_n)
     st.session_state.q_agent = None # Reset Q
+    st.session_state.training_history = []
 
 # Agent Select
 agent_type = st.sidebar.selectbox("Agenten Intelligenz", ["Manuell", "Reflex-Agent", "Modell-basiert", "Q-Learning"])
@@ -223,12 +242,93 @@ if agent_type == "Q-Learning":
     alpha = st.sidebar.slider("Alpha (Lernrate)", 0.1, 1.0, 0.5, help="Wie stark neue Informationen alte Informationen überschreiben.")
     gamma = st.sidebar.slider("Gamma (Diskount)", 0.1, 1.0, 0.9, help="Wie wichtig zukünftige Belohnungen gegenüber sofortigen sind.")
     epsilon = st.sidebar.slider("Epsilon (Exploration)", 0.0, 1.0, 0.1, help="Wahrscheinlichkeit für zufällige Aktionen (Exploration) vs. beste bekannte Aktion (Exploitation).")
+    
+    if st.sidebar.button("Train Episodes (50x)"):
+        # Training Loop
+        progress_bar = st.sidebar.progress(0)
+        
+        # Ensure Agent Exists
+        if st.session_state.q_agent is None:
+             st.session_state.q_agent = QAgent(st.session_state.env, alpha, gamma, epsilon)
+        
+        qa = st.session_state.q_agent
+        # Update params
+        qa.alpha, qa.gamma, qa.epsilon = alpha, gamma, epsilon
+        
+        for ep in range(50):
+            # Reset Environment but KEEP Q-Table
+            # We need to reuse the existing environment but 'clean' the grid positions? 
+            # Or make a new env with same dimensions?
+            # Better: Reset current env to start pos.
+            st.session_state.env.reset()
+            # Note: Env.reset() randomizes walls too in current implementation.
+            # If we want to learn ONE maze, we should separate 'reset_pos' from 'reset_maze'.
+            # For this simple app, re-randomizing maze makes it harder to learn unless map is static.
+            # Let's Modify Env.reset() logic? 
+            # THE USER REQUEST didn't specify static maze. 
+            # But Q-learning on RANDOM mazes requires state input to include local view, currently state is (r,c).
+            # If maze changes, (r,c) meaning changes. 
+            # IMPLICIT REQUIREMENT for convergence: Maze must be static during training episodes OR state representation must be relative.
+            # For this level of course (AI_Kurs_26), let's make RESET keep the walls if we are training?
+            # Or just let it be. 
+            # Wait, standard Gridworld Q-Learning (Table based on Coord) FAILS if walls move.
+            # So I should PROBABLY keep the walls fixed for the "Train Episodes" loop.
+            
+            # Temporary fix: Don't randomize walls on simple reset if we want to learn 'this' maze?
+            # Current Env.reset() randomizes walls.
+            # Let's stick to the requested task: "Q-Tabelle darf ... nicht gelöscht werden".
+            # If the maze changes, the Q-table (Layout based) becomes invalid.
+            # So effectively we should NOT re-randomize walls every episode for Q-Learning on coordinates.
+            # I will modify Environment.reset to have an option to keep layout.
+            pass
+            
+            # ACTUALLY: The user didn't ask to fix the maze. But if I don't, the graph won't converge. 
+            # I will assume for "Train Episodes", we are training on the CURRENT maze.
+            # But `env.reset()` re-gens walls.
+            # I will perform a 'soft reset' manually here.
+            
+            env = st.session_state.env
+            env.agent_pos = env.start_pos
+            env.game_over = False
+            env.visited = {env.start_pos}
+            # Keep walls!
+            
+            steps = 0
+            ep_return = 0
+            qa.prev_s = None # Reset previous state for new episode
+            
+            # Run Episode
+            while not env.game_over and steps < 200: # Limit steps
+                s = env.agent_pos
+                a = qa.act(s)
+                qa.post_step(s, a)
+                
+                next_s, r, done = env.step(a)
+                qa.learn(s, r, next_s)
+                
+                steps += 1
+                ep_return += r
+            
+            # Log Stat
+            st.session_state.training_history.append(steps)
+            progress_bar.progress((ep + 1) / 50)
+        
+        st.session_state.logs.append(f"✅ **Training abgeschlossen:** 50 Episoden auf aktueller Karte.")
+        st.rerun()
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("Simulations-Steuerung")
 auto_run = st.sidebar.checkbox("Auto-Lauf (Simulation)", value=False)
 speed = st.sidebar.slider("Geschwindigkeit (Wartezeit in s)", 0.0, 1.0, 0.2)
-fog_enabled = st.sidebar.checkbox("Nebel des Krieges (Fog of War)", value=True, help="Wenn aktiv, sieht der Agent nur benachbarte Felder.")
+percept_enabled = st.sidebar.checkbox("Percept Field (Sichtfeld)", value=True, help="Wenn aktiv, sieht der Agent nur benachbarte Felder (Radius 2).")
+
+# NEW: Current Percept Expander
+with st.sidebar.expander("👁️ Current Percept", expanded=True):
+    percepts = st.session_state.env.get_current_percept_text()
+    st.markdown(f"**UP:** `{percepts['UP']}`")
+    st.markdown(f"**DOWN:** `{percepts['DOWN']}`")
+    st.markdown(f"**LEFT:** `{percepts['LEFT']}`")
+    st.markdown(f"**RIGHT:** `{percepts['RIGHT']}`")
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("Umgebungs-Konfiguration")
@@ -236,10 +336,12 @@ env_step_penalty = st.sidebar.slider("Schritt-Strafe (Kosten)", -2.0, 0.0, -0.1,
 env_goal_reward = st.sidebar.slider("Ziel-Belohnung", 10.0, 200.0, 100.0, 10.0, help="Belohnung für das Erreichen des Ziels.")
 
 if st.sidebar.button("RESET SIMULATION"):
+    # Full Reset including Walls
     st.session_state.env = Environment(grid_n, grid_n, step_penalty=env_step_penalty, goal_reward=env_goal_reward)
     st.session_state.q_agent = None
     st.session_state.logs = []
     st.session_state.current_episode = {'steps': 0, 'return': 0.0}
+    st.session_state.training_history = []
     st.rerun()
 
 # Stats Display
@@ -271,8 +373,9 @@ with st.sidebar.expander("📊 Leistungs-Statistik", expanded=False):
 
 # --- 5. HELPER FUNCTIONS ---
 
-def render_grid_html(env, agent_type, fog_enabled, q_agent=None):
-    visible_mask = env.get_fog_view(radius=1) if fog_enabled else {(r,c) for r in range(env.height) for c in range(env.width)}
+def render_grid_html(env, agent_type, percept_enabled, q_agent=None):
+    # Radius 2 for Percept
+    visible_mask = env.get_percept_view(radius=2) if percept_enabled else {(r,c) for r in range(env.height) for c in range(env.width)}
     
     # Calculate Max Q for normalization if needed
     max_q_val = 1.0
@@ -288,28 +391,17 @@ def render_grid_html(env, agent_type, fog_enabled, q_agent=None):
             
             # Base styles
             style = ""
-            symbol = "░" # Fog default
-            
-            # Q-Learning Visualization (Heatmap)
-            # We want to show Q-values even in Fog for the 'Mind' of the agent? 
-            # Or only observed? Usually Q-values are internal state, so we can show them always or dependent on fog?
-            # Let's show them 'underneath' the fog if we want to debug, but strictly speaking 
-            # purely visual Fog should hide everything. 
-            # BUT: The requirement is "learning should be visible". 
-            # So we will tint the cell based on Q-value if visited/known.
+            symbol = "░" # Unobserved
             
             q_color = None
             if q_agent:
-                # Get max Q for this state
                 q_vals = q_agent.q[r, c]
                 best_q = np.max(q_vals)
                 if best_q != 0:
-                    # Simple Green intensity for positive Q
-                    intensity = int(min(255, max(50, (best_q / max_q_val) * 200))) 
-                    # If negative (hitting walls), maybe Red?
-                    if best_q < 0:
+                    intensity = int(min(255, max(50, (abs(best_q) / max_q_val) * 200))) 
+                    if best_q < -0.1: # Negative
                          q_color = f"rgba(255, 0, 0, 0.3)"
-                    else:
+                    elif best_q > 0.1: # Positive
                          q_color = f"rgba(0, {intensity}, 0, 0.5)"
 
             # Determine Symbol
@@ -327,7 +419,10 @@ def render_grid_html(env, agent_type, fog_enabled, q_agent=None):
                 if q_color: style = f"background-color: {q_color};"
 
             else:
-                # In Fog
+                # In Percept Shadow (Unobserved)
+                symbol = "░" 
+                style = "color: #333;" # Dimmed
+                
                 # Check Memory for Model-Based
                 if agent_type == "Modell-basiert" and pos in env.memory_map:
                     val = env.memory_map[pos]
@@ -336,17 +431,14 @@ def render_grid_html(env, agent_type, fog_enabled, q_agent=None):
                     else: symbol = "&nbsp;" # Empty Known
                     style = "color: #555;" # Dimmed for memory
                 
-                # Check Q-Values for Q-Learning (Internal Knowledge is 'clear' to the agent)
-                # If we want to visualize what the agent KNOWS, we should probably show the color even in fog?
-                # Let's show the Q-color in fog but with existing Fog char '░' or '·'?
-                # Better: IF Q-value is non-zero, it means agent has explored there.
-                # So we show the Q-color.
+                # Q-Learning: Show known Q-values even in shadow?
+                # User constraint: "Felder außerhalb ... visuell als 'Unobserved' (░) markiert werden."
+                # But seeing the Q-Table grow is nice.
+                # Let's faintly show Q-color behind the fog symbol if known
                 elif q_agent and np.max(q_agent.q[r, c]) != 0:
-                     symbol = "·"
-                     if q_color: style = f"background-color: {q_color}; color: #888;"
+                     if q_color: style = f"background-color: {q_color}; color: #555;"
 
             # Construct Cell HTML
-            # We need a span to apply style
             if style:
                 row_str += f'<span style="{style}">{symbol}</span> '
             else:
@@ -364,35 +456,26 @@ env = st.session_state.env
 st.markdown('<div class="theory-box">', unsafe_allow_html=True)
 if agent_type == "Manuell":
     st.markdown('<div class="theory-title">MODUS: MANUELLE STEUERUNG</div>', unsafe_allow_html=True)
-    st.write("Du bist der Agent. Nutze die Pfeiltasten, um durch den Nebel zu navigieren. Beobachte, wie schwierig es ist, Entscheidungen ohne vollständige Information zu treffen. Dies simuliert die **Partielle Beobachtbarkeit**.")
+    st.write("Du bist der Agent. Das **Percept Field** ist dein Sichtbereich (Radius 2). Außerhalb davon ist alles 'Unobserved' (░).")
 elif agent_type == "Reflex-Agent":
     st.markdown('<div class="theory-title">MODUS: REFLEX-AGENT (Einfach)</div>', unsafe_allow_html=True)
     st.image(r"https://latex.codecogs.com/png.latex?\color{green}\text{Aktion}(p) = \text{Regel}[\text{Sensor}(p)]")
-    st.write("Dieser Agent **reagiert** nur auf das aktuelle Feld. Er hat KEIN Gedächtnis. Wenn er vor einer Wand steht, dreht er sich um. Er verfängt sich oft in Endlos-Schleifen, da er nicht weiß, wo er schon war.")
+    st.write("Dieser Agent reagiert nur auf sein **Percept**. Er hat KEIN Gedächtnis.")
 elif agent_type == "Modell-basiert":
     st.markdown('<div class="theory-title">MODUS: MODELL-BASIERTER REFLEX-AGENT</div>', unsafe_allow_html=True)
-    st.write("Dieser Agent besitzt ein **Internes Modell** ($S'$). Er merkt sich, wo er schon war (Mental Map) und 'lichtet' den Nebel in seinem Gedächtnis. Das erlaubt ihm, effizienter zu suchen und Sackgassen zu vermeiden.")
+    st.write("Dieser Agent speichert beobachtete Felder in einer **Internal Map**. Er erinnert sich an Wände und besuchte Orte, auch wenn sie nicht mehr im Percept sind.")
 elif agent_type == "Q-Learning":
     st.markdown('<div class="theory-title">MODUS: Q-LEARNING (Verstärkendes Lernen)</div>', unsafe_allow_html=True)
-    st.markdown("**Die Markov-Eigenschaft:**")
-    st.latex(r"P(S_{t+1}|S_t) = P(S_{t+1}|S_t, S_{t-1}, \dots, S_0)")
-    st.info("Das bedeutet: Die Zukunft hängt **nur** vom aktuellen Zustand ab, nicht von der Vergangenheit. Dem Agenten ist es egal, *wie* er hierher gekommen ist – nur *wo* er jetzt ist, zählt für die nächste Entscheidung.")
-    st.markdown("---")
-    st.latex(r"Q(s,a) \leftarrow Q(s,a) + \alpha [R + \gamma \max_{a'} Q(s',a') - Q(s,a)]")
-    st.write(f"Der Agent lernt den **Nutzen (Utility)** von Aktionen durch Belohnung ($R$) und Bestrafung. Er baut eine Tabelle (Q-Table) auf, die ihm sagt: 'In Zustand $s$, wie gut ist Aktion $a$?'.")
-    st.write(f"- $\\alpha={alpha}$: **Lernrate**. Wie schnell überschreibt neues Wissen das alte?")
-    st.write(f"- $\\gamma={gamma}$: **Diskount-Faktor**. Wie wichtig sind zukünftige Belohnungen?")
+    st.write("Der Agent lernt durch **Episoden**. Nutze den 'Train Episodes' Button, um das Lernen zu beschleunigen. Beobachte das Konvergenz-Diagramm unten.")
 st.markdown('</div>', unsafe_allow_html=True)
 
 # Keyboard Logic (JavaScript Injection)
-# This script listens for keypresses and simulates clicks on the visible buttons below.
 import streamlit.components.v1 as components
 
 js_code = """
 <script>
 const doc = window.parent.document;
 doc.addEventListener('keydown', function(e) {
-    // Map keys to button text content (partial match)
     let btnToken = null;
     if (e.key === 'ArrowUp') btnToken = "⬆️";
     else if (e.key === 'ArrowDown') btnToken = "⬇️";
@@ -409,7 +492,6 @@ doc.addEventListener('keydown', function(e) {
 });
 </script>
 """
-# Inject the script (invisible)
 components.html(js_code, height=0, width=0)
 
 st.write("Steuerung: Nutze **Pfeiltasten** oder Buttons.")
@@ -420,17 +502,15 @@ col_m1, col_m2 = st.columns(2)
 col_m1.metric("Schritte (Aktuell)", curr_ep['steps'])
 col_m2.metric("Return (Aktuell)", f"{curr_ep['return']:.2f}")
 
-action = None # Initialize action to avoid NameError
+action = None # Initialize action
 
 # MANUAL INPUT MAPPING
 if agent_type == "Manuell":
     # Compact Centered Layout
-    # Up Button
     _, col_up, _ = st.columns([14, 2, 14])
     with col_up:
         if st.button("⬆️", key="btn_up_v2", help="Nach Oben"): action = 0
             
-    # Left, Down, Right Buttons
     _, col_left, col_down, col_right, _ = st.columns([12, 2, 2, 2, 12])
     with col_left:
         if st.button("⬅️", key="btn_left_v2", help="Nach Links"): action = 2
@@ -455,13 +535,11 @@ if agent_type != "Manuell":
             
             # 1. REFLEX
             if agent_type == "Reflex-Agent":
-                # Dumb rule: Random safe move, bias towards goal if visible
-                view = env.get_fog_view(1)
+                view = env.get_percept_view(2) # Uses Percept
                 possibles = []
                 for i, (dr, dc) in enumerate([(-1,0), (1,0), (0,-1), (0,1)]):
                     nr, nc = env.agent_pos[0]+dr, env.agent_pos[1]+dc
                     
-                    # Check Bounds
                     if 0 <= nr < env.height and 0 <= nc < env.width:
                         if (nr, nc) in view:
                             if env.grid[nr, nc] == 2: possibles.append((i, 100))
@@ -470,24 +548,18 @@ if agent_type != "Manuell":
                         else:
                             possibles.append((i, -10)) # Unknown
                     else:
-                        possibles.append((i, -100)) # Out of bounds = Wall
+                        possibles.append((i, -100)) # Out of bounds
                 
-                # Filter best moves
                 max_score = max(possibles, key=lambda x: x[1])[1]
                 best_moves = [move for move, score in possibles if score == max_score]
                 action = random.choice(best_moves)
             
             # 2. MODEL-BASED
             elif agent_type == "Modell-basiert":
-                # Update memory
-                c_view = env.get_fog_view(1)
+                c_view = env.get_percept_view(2)
                 for pos in c_view:
                     if 0 <= pos[0] < env.height and 0 <= pos[1] < env.width:
                          env.memory_map[pos] = env.grid[pos]
-                
-                # Plan: Go to nearest 'Unknown' or Goal
-                # Simple heuristic: Pick neighbor that is effectively empty and least visited?
-                # Random for now to demonstrate memory via visual map
                 action = random.randint(0, 3)
 
             # 3. Q-LEARNING
@@ -496,56 +568,38 @@ if agent_type != "Manuell":
                     st.session_state.q_agent = QAgent(env, alpha, gamma, epsilon)
                 
                 qa = st.session_state.q_agent
-                # Update params
                 qa.alpha, qa.gamma, qa.epsilon = alpha, gamma, epsilon
                 
                 s = env.agent_pos
                 action = qa.act(s)
                 qa.post_step(s, action)
 
-            # EXECUTE ACTION inside the loop (only for auto-run agents)
+            # EXECUTE ACTION
             if action is not None and not env.game_over:
                 next_s, r, done = env.step(action)
                 
-                # Update Stats
                 st.session_state.current_episode['steps'] += 1
                 st.session_state.current_episode['return'] += r
                 
-                # Post-Step Learning
                 if agent_type == "Q-Learning" and st.session_state.q_agent:
-                    st.session_state.q_agent.learn(None, r, next_s) # s is stored in prev_s
+                    st.session_state.q_agent.learn(None, r, next_s)
                 
-                # Render Loop for Auto-Run
                 if steps_to_run > 1:
-                     # Re-render Grid using helper
-                     grid_html = render_grid_html(env, agent_type, fog_enabled, st.session_state.q_agent if agent_type == "Q-Learning" else None)
+                     grid_html = render_grid_html(env, agent_type, percept_enabled, st.session_state.q_agent if agent_type == "Q-Learning" else None)
                      placeholder.markdown(grid_html, unsafe_allow_html=True)
-                     
-                     # Update Live Metrics in Loop (requires placeholder or rerun, but rerun breaks loop)
-                     # We can't easily update the 'st.metric' outside without rerun. 
-                     # But we can assume the user sees the final result or we use another placeholder.
-                     # For simplicity, we just run.
-                     
                      time.sleep(speed)
+                     
                      if done: 
                          st.balloons()
                          st.session_state.logs.append("ZIEL ERREICHT!")
                          
-                         # Save Session Stats
                          stat_entry = st.session_state.stats[agent_type]
                          stat_entry['episodes'] += 1
-                         stat_entry['wins'] += 1 # Only goal triggers done=True with reward 100 in this env usually
+                         stat_entry['wins'] += 1
                          stat_entry['total_steps'] += st.session_state.current_episode['steps']
                          stat_entry['total_return'] += st.session_state.current_episode['return']
-                         
-                         # Reset Current
-                         # DIDACTIC CHANGE: Do NOT reset immediately so user sees the final score (return).
-                         # It will be reset on next 'Reset' or 'Grid Change'.
-                         # st.session_state.current_episode = {'steps': 0, 'return': 0.0}
-                         
                          break
-
-        # If auto-run is on and game not over, rerun to continue loop
+                         
         if auto_run and not env.game_over:
              time.sleep(speed)
              st.rerun()
@@ -554,7 +608,6 @@ if agent_type != "Manuell":
 if agent_type == "Manuell" and action is not None and not env.game_over:
     next_s, r, done = env.step(action)
     
-    # Update Stats
     st.session_state.current_episode['steps'] += 1
     st.session_state.current_episode['return'] += r
     
@@ -562,37 +615,32 @@ if agent_type == "Manuell" and action is not None and not env.game_over:
         st.balloons()
         st.session_state.logs.append("ZIEL ERREICHT!")
         
-        # Save Session Stats
         stat_entry = st.session_state.stats[agent_type]
         stat_entry['episodes'] += 1
         stat_entry['wins'] += 1
         stat_entry['total_steps'] += st.session_state.current_episode['steps']
         stat_entry['total_return'] += st.session_state.current_episode['return']
-        
-        # Reset Current
-        # DIDACTIC CHANGE: Do NOT reset immediately so user sees the final score.
-        # st.session_state.current_episode = {'steps': 0, 'return': 0.0}
-        
-    # Removed st.rerun() to allow balloons to render and grid to update in current frame
 
 # --- 6. RENDERER (ASCII/EMOJI) ---
-
-# Only render the static grid if NOT in auto-run loop (to avoid duplicate rendering or flashing)
 if not (agent_type != "Manuell" and auto_run):
-    grid_html = render_grid_html(env, agent_type, fog_enabled, st.session_state.q_agent if agent_type == "Q-Learning" else None)
+    grid_html = render_grid_html(env, agent_type, percept_enabled, st.session_state.q_agent if agent_type == "Q-Learning" else None)
     st.markdown(grid_html, unsafe_allow_html=True)
+
+# Training Progress Visualization
+if agent_type == "Q-Learning" and st.session_state.training_history:
+    st.write("### 📈 Lern-Fortschritt (Steps pro Episode)")
+    st.line_chart(st.session_state.training_history)
+    st.caption("Ziel: Sinkende Kurve (Konvergenz) -> Der Agent findet den Weg schneller.")
 
 # Q-Value Heatmap (Subtitle)
 if agent_type == "Q-Learning" and st.session_state.q_agent:
     st.write("### Wissens-Karte (Max Q-Wert)")
-    # Render small table/grid
     q_grid = np.max(st.session_state.q_agent.q, axis=2)
     st.dataframe(pd.DataFrame(q_grid).style.background_gradient(cmap="Greens", axis=None))
 
-# --- 7. AGENT THOUGHTS (LOGS) ---
+# --- 7. LOGS ---
 st.markdown("---")
 with st.expander("🧠 Agenten Gedanken-Protokoll (Live Logik)", expanded=True):
-    # Show last 5 logs reversed
     if st.session_state.logs:
         for log in reversed(st.session_state.logs[-10:]):
             st.markdown(f"- {log}", unsafe_allow_html=True)
