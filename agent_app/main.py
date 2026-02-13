@@ -69,9 +69,11 @@ button:hover {
 # --- 2. LOGIC: ENVIRONMENT & AGENTS ---
 
 class Environment:
-    def __init__(self, width=10, height=10):
+    def __init__(self, width=10, height=10, step_penalty=-0.1, goal_reward=100.0):
         self.width = width
         self.height = height
+        self.step_penalty = step_penalty
+        self.goal_reward = goal_reward
         self.reset()
     
     def reset(self):
@@ -118,9 +120,9 @@ class Environment:
                 # Check Goal
                 if cell == 2:
                     self.game_over = True
-                    return self.agent_pos, 100, True
+                    return self.agent_pos, self.goal_reward, True
                 
-                return self.agent_pos, -0.1, False
+                return self.agent_pos, self.step_penalty, False
         
         return self.agent_pos, -1, False # Out of bounds
 
@@ -144,8 +146,15 @@ class QAgent:
         
     def act(self, s):
         if random.random() < self.epsilon:
+            st.session_state.logs.append(f"🎲 **Random** move at {s}")
             return random.randint(0, 3)
-        return np.argmax(self.q[s[0], s[1]])
+        
+        # Grease the wheels: explain greedy
+        vals = self.q[s[0], s[1]]
+        max_v = np.max(vals)
+        action = np.argmax(vals)
+        st.session_state.logs.append(f"🧠 **Greedy** move at {s} (Q={max_v:.2f})")
+        return action
 
     def learn(self, s, r, s_next):
         if self.prev_s is None: return
@@ -156,13 +165,21 @@ class QAgent:
         new_q = old_q + self.alpha * (r + self.gamma * next_max - old_q)
         self.q[self.prev_s[0], self.prev_s[1], self.prev_a] = new_q
         
+        # Didactic Log
+        actions = ["UP", "DOWN", "LEFT", "RIGHT"]
+        act_str = actions[self.prev_a]
+        log_msg = (f"🎯 **Q-Update** @ {self.prev_s} doing {act_str}:<br>"
+                   f"`Q_new = {old_q:.2f} + {self.alpha} * ({r:.2f} + {self.gamma} * {next_max:.2f} - {old_q:.2f})` "
+                   f"➡️ **{new_q:.3f}**")
+        st.session_state.logs.append(log_msg)
+        
     def post_step(self, s, a):
         self.prev_s = s
         self.prev_a = a
 
 # --- 3. STATE INITIALIZATION ---
 if 'env' not in st.session_state:
-    st.session_state.env = Environment(10, 10)
+    st.session_state.env = Environment(10, 10, step_penalty=-0.1, goal_reward=100.0)
     st.session_state.agent_str = "Manual"
     st.session_state.logs = []
     st.session_state.q_agent = None
@@ -206,8 +223,13 @@ auto_run = st.sidebar.checkbox("Auto Run", value=False)
 speed = st.sidebar.slider("Speed (Delay in s)", 0.0, 1.0, 0.2)
 fog_enabled = st.sidebar.checkbox("Fog of War", value=True, help="If checked, the agent only sees nearby cells.")
 
+st.sidebar.markdown("---")
+st.sidebar.subheader("Environment Config")
+env_step_penalty = st.sidebar.slider("Step Penalty", -2.0, 0.0, -0.1, 0.1, help="Reward (negative) for each move.")
+env_goal_reward = st.sidebar.slider("Goal Reward", 10.0, 200.0, 100.0, 10.0, help="Reward for reaching the goal.")
+
 if st.sidebar.button("RESET SIMULATION"):
-    st.session_state.env = Environment(grid_n, grid_n)
+    st.session_state.env = Environment(grid_n, grid_n, step_penalty=env_step_penalty, goal_reward=env_goal_reward)
     st.session_state.q_agent = None
     st.session_state.logs = []
     st.session_state.current_episode = {'steps': 0, 'return': 0.0}
@@ -539,3 +561,14 @@ if agent_type == "Q-Learning" and st.session_state.q_agent:
     # Render small table/grid
     q_grid = np.max(st.session_state.q_agent.q, axis=2)
     st.dataframe(pd.DataFrame(q_grid).style.background_gradient(cmap="Greens", axis=None))
+    st.dataframe(pd.DataFrame(q_grid).style.background_gradient(cmap="Greens", axis=None))
+
+# --- 7. AGENT THOUGHTS (LOGS) ---
+st.markdown("---")
+with st.expander("🧠 Agent Thoughts (Live Logic)", expanded=True):
+    # Show last 5 logs reversed
+    if st.session_state.logs:
+        for log in reversed(st.session_state.logs[-10:]):
+            st.markdown(f"- {log}", unsafe_allow_html=True)
+    else:
+        st.write("No thoughts yet. Waiting for exploration...")
