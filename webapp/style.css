@@ -1,0 +1,133 @@
+:root {
+    --bg-color: #1e1e1e;
+    --text-color: #d4d4d4;
+    --accent-color: #007acc;
+    --grid-bg: #2d2d2d;
+    --sidebar-bg: #252526;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    margin: 0;
+    display: flex;
+    height: 100vh;
+}
+
+.container {
+    display: flex;
+    width: 100%;
+}
+
+.sidebar {
+    width: 300px;
+    background-color: var(--sidebar-bg);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    border-right: 1px solid #333;
+    overflow-y: auto;
+}
+
+.main-content {
+    flex-grow: 1;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-y: auto;
+}
+
+.control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+input[type="range"] {
+    width: 100%;
+}
+
+button {
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    padding: 10px;
+    cursor: pointer;
+    font-size: 14px;
+    border-radius: 4px;
+}
+
+button:hover {
+    opacity: 0.9;
+}
+
+.header-controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    align-items: center;
+}
+
+/* Toggle Switch */
+.toggle-switch {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.ascii-grid {
+    font-family: 'Courier New', Courier, monospace;
+    white-space: pre;
+    font-size: 24px;
+    line-height: 24px;
+    background-color: var(--grid-bg);
+    padding: 20px;
+    border-radius: 5px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    user-select: none;
+}
+
+.info-panel {
+    margin-top: 20px;
+    width: 80%;
+    max-width: 600px;
+    background-color: var(--sidebar-bg);
+    padding: 15px;
+    border-radius: 5px;
+}
+
+.metrics {
+    display: flex;
+    justify-content: space-around;
+    margin-bottom: 10px;
+    font-size: 18px;
+}
+
+.log-box h3 {
+    margin-top: 0;
+    font-size: 16px;
+    color: var(--accent-color);
+}
+
+.log-box p {
+    font-style: italic;
+    color: #ce9178;
+}
+
+.q-table {
+    display: grid;
+    gap: 2px;
+    margin-top: 10px;
+    font-size: 12px;
+    font-family: monospace;
+}
+
+.q-cell {
+    background: #333;
+    padding: 2px;
+    text-align: center;
+}
