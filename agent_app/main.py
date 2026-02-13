@@ -63,6 +63,13 @@ button:hover {
     border-color: #fff !important;
     background-color: #222 !important;
 }
+
+/* Compact Manual Control Buttons */
+div[data-testid="column"] button {
+    padding: 0.2rem 0.5rem !important;
+    font-size: 0.8rem !important;
+    min-height: 0px !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -415,18 +422,18 @@ action = None # Initialize action to avoid NameError
 if agent_type == "Manuell":
     # Compact Centered Layout
     # Up Button
-    _, col_up, _ = st.columns([6, 1, 6])
+    _, col_up, _ = st.columns([12, 2, 12])
     with col_up:
-        if st.button("OBEN ⬆️", key="btn_up", use_container_width=True): action = 0
+        if st.button("OBEN ⬆️", key="btn_up"): action = 0
             
     # Left, Down, Right Buttons
-    _, col_left, col_down, col_right, _ = st.columns([5, 1, 1, 1, 5])
+    _, col_left, col_down, col_right, _ = st.columns([10, 2, 2, 2, 10])
     with col_left:
-        if st.button("LINKS ⬅️", key="btn_left", use_container_width=True): action = 2
+        if st.button("LINKS ⬅️", key="btn_left"): action = 2
     with col_down:
-        if st.button("UNTEN ⬇️", key="btn_down", use_container_width=True): action = 1
+        if st.button("UNTEN ⬇️", key="btn_down"): action = 1
     with col_right:
-        if st.button("RECHTS ➡️", key="btn_right", use_container_width=True): action = 3
+        if st.button("RECHTS ➡️", key="btn_right"): action = 3
 
 # AUTOMATIC AGENT LOGIC
 if agent_type != "Manuell":
