@@ -205,7 +205,7 @@ if agent_type == "Manual":
     st.write("You are the agent. Use the Arrow Keys to navigate the fog. Observe how partial observability affects your pathfinding.")
 elif agent_type == "Simple Reflex":
     st.markdown('<div class="theory-title">MODE: SIMPLE REFLEX</div>', unsafe_allow_html=True)
-    st.image("https://latex.codecogs.com/png.latex?\color{green}\\text{Action}(p) = \\text{Rules}[\\text{State}(p)]")
+    st.image(r"https://latex.codecogs.com/png.latex?\color{green}\text{Action}(p) = \text{Rules}[\text{State}(p)]")
     st.write("This agent **reacts** only to the immediate cell via hardcoded rules (If Wall -> Turn). It has NO memory and NO plan. It typically fails in loops.")
 elif agent_type == "Model-based":
     st.markdown('<div class="theory-title">MODE: MODEL-BASED REFLEX</div>', unsafe_allow_html=True)
@@ -245,7 +245,22 @@ doc.addEventListener('keydown', function(e) {
 components.html(js_code, height=0, width=0)
 
 st.write("Controls: Use **Arrow Keys** or Buttons below.")
-if agent_type != "Manual":
+
+action = None # Initialize action to avoid NameError
+
+if agent_type == "Manual":
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col2:
+        if st.button("UP ⬆️"): action = 0
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col1:
+        if st.button("LEFT ⬅️"): action = 2
+    with col2:
+        if st.button("DOWN ⬇️"): action = 1
+    with col3:
+        if st.button("RIGHT ➡️"): action = 3
+
+elif agent_type != "Manual":
     if st.button("STEP / RUN"):
         if not env.game_over:
             
