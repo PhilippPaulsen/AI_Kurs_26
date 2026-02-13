@@ -203,7 +203,7 @@ if 'env' not in st.session_state:
     st.session_state.current_episode = {'steps': 0, 'return': 0.0}
 
 # --- 4. SIDEBAR ---
-st.sidebar.title("LABOR STEUERUNG")
+st.sidebar.title("LABOR STEUERUNG (v1.2)")
 
 # Grid Resizer
 grid_n = st.sidebar.slider("Gittergröße N", 5, 20, 10)
@@ -390,10 +390,10 @@ const doc = window.parent.document;
 doc.addEventListener('keydown', function(e) {
     // Map keys to button text content (partial match)
     let btnToken = null;
-    if (e.key === 'ArrowUp') btnToken = "OBEN";
-    else if (e.key === 'ArrowDown') btnToken = "UNTEN";
-    else if (e.key === 'ArrowLeft') btnToken = "LINKS";
-    else if (e.key === 'ArrowRight') btnToken = "RECHTS";
+    if (e.key === 'ArrowUp') btnToken = "⬆️";
+    else if (e.key === 'ArrowDown') btnToken = "⬇️";
+    else if (e.key === 'ArrowLeft') btnToken = "⬅️";
+    else if (e.key === 'ArrowRight') btnToken = "➡️";
     
     if (btnToken) {
         const buttons = Array.from(doc.querySelectorAll('button'));
@@ -422,18 +422,18 @@ action = None # Initialize action to avoid NameError
 if agent_type == "Manuell":
     # Compact Centered Layout
     # Up Button
-    _, col_up, _ = st.columns([12, 2, 12])
+    _, col_up, _ = st.columns([14, 2, 14])
     with col_up:
-        if st.button("OBEN ⬆️", key="btn_up"): action = 0
+        if st.button("⬆️", key="btn_up_v2", help="Nach Oben"): action = 0
             
     # Left, Down, Right Buttons
-    _, col_left, col_down, col_right, _ = st.columns([10, 2, 2, 2, 10])
+    _, col_left, col_down, col_right, _ = st.columns([12, 2, 2, 2, 12])
     with col_left:
-        if st.button("LINKS ⬅️", key="btn_left"): action = 2
+        if st.button("⬅️", key="btn_left_v2", help="Nach Links"): action = 2
     with col_down:
-        if st.button("UNTEN ⬇️", key="btn_down"): action = 1
+        if st.button("⬇️", key="btn_down_v2", help="Nach Unten"): action = 1
     with col_right:
-        if st.button("RECHTS ➡️", key="btn_right"): action = 3
+        if st.button("➡️", key="btn_right_v2", help="Nach Rechts"): action = 3
 
 # AUTOMATIC AGENT LOGIC
 if agent_type != "Manuell":
