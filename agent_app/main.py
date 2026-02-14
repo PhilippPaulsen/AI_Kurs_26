@@ -9,53 +9,61 @@ st.set_page_config(page_title="KI-Labor 2026", layout="wide", initial_sidebar_st
 
 st.markdown("""
 <style>
-/* TERMINAL AESTHETICS */
-@import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap');
+/* ACADEMIC / QUIET AESTHETICS */
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;600&display=swap');
+
+:root {
+    --bg-color: #0E1117;
+    --text-primary: #E6EDF3;
+    --text-secondary: #9AA6B2;
+    --border-color: #30363D;
+    --accent-green: #2EA043;
+    --accent-blue: #58A6FF;
+    --accent-red: #DA3633;
+}
 
 html, body, .stApp {
-    background-color: #000000;
-    color: #ffffff;
+    background-color: var(--bg-color);
+    color: var(--text-primary);
     font-family: 'Roboto Mono', monospace;
 }
 
 /* Sidebar */
 [data-testid="stSidebar"] {
-    background-color: #0a0a0a;
-    border-right: 1px solid #333;
+    background-color: #161B22; /* Slightly lighter than main bg */
+    border-right: 1px solid var(--border-color);
 }
 
 /* Streamlit Widget Labels */
 [data-testid="stWidgetLabel"] p {
-    color: #ffffff !important;
+    color: var(--text-primary) !important;
     font-weight: 500 !important;
 }
 
 /* Metrics labels */
 [data-testid="stMetricLabel"] {
-    color: #e0e0e0 !important;
+    color: var(--text-secondary) !important;
 }
 
 /* Captions and Help Text */
 [data-testid="stCaptionContainer"], .stCaption {
-    color: #cccccc !important;
+    color: var(--text-secondary) !important;
 }
 
 /* Metrics values */
 [data-testid="stMetricValue"] {
-    color: #ffffff !important;
+    color: var(--text-primary) !important;
 }
 
-/* Sidebar Titles and Subheaders */
-[data-testid="stSidebar"] h1, 
-[data-testid="stSidebar"] h2, 
-[data-testid="stSidebar"] h3 {
-    color: #00ff00 !important;
-    text-shadow: 0 0 5px rgba(0, 255, 0, 0.4);
+/* Headers */
+h1, h2, h3 {
+    color: var(--text-primary) !important;
+    font-weight: 600 !important;
 }
 
 /* Sidebar Section Dividers/Labels */
 .st-emotion-cache-1vt4y6f {
-    color: #00ff00 !important;
+    color: var(--accent-blue) !important;
 }
 
 /* Grid Container */
@@ -65,38 +73,37 @@ html, body, .stApp {
     line-height: 28px;
     white-space: pre;
     text-align: center;
-    background-color: #050505;
+    background-color: #010409; /* Deep black-blue */
     padding: 20px;
-    border: 1px solid #333;
-    border-radius: 5px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
     margin: 20px 0;
 }
 
 /* Didactic Box */
 .theory-box {
-    border: 1px dashed #00ff00;
+    border: 1px dashed var(--accent-blue);
     padding: 15px;
     margin-bottom: 20px;
-    color: #00ff00;
-    background-color: #001100;
-}
-.theory-title {
-    font-weight: bold;
-    border-bottom: 1px solid #00ff00;
-    margin-bottom: 10px;
+    color: var(--text-primary);
+    background-color: #0D1117;
 }
 
-/* Buttons */
+/* General Button Styles */
 button {
-    border-radius: 0 !important;
-    border: 1px solid #555 !important;
-    background-color: #111 !important;
-    color: #fff !important;
+    border-radius: 6px !important; /* Slight rounding */
+    border: 1px solid var(--border-color) !important;
+    background-color: #21262D !important;
+    color: var(--text-primary) !important;
+    transition: all 0.2s ease;
 }
 button:hover {
-    border-color: #fff !important;
-    background-color: #222 !important;
+    border-color: var(--text-secondary) !important;
+    background-color: #30363D !important;
 }
+
+/* Specific Button Classes (Targeted via Streamlit's div structure implies order, but we use generic overrides above. 
+   For specific "Reset" buttons, we accept base style or use Primary for emphasis) */
 
 /* Compact Manual Control Buttons */
 div[data-testid="column"] button {
@@ -637,12 +644,12 @@ with zone_env:
         header_context = "Environment: Grid World als MDP · Observability abhängig vom State-Design."
 
     st.markdown(f"""
-    <div style="margin-bottom: 10px;">
-        <h3 style="margin: 0; padding: 0; font-size: 1.2rem; color: #eee;">{header_title}</h3>
-        <div style="font-size: 0.9rem; color: #ccc; line-height: 1.4; margin-top: 2px;">
+    <div style="margin-bottom: 12px;">
+        <h3 style="margin: 0; padding: 0; font-size: 22px; font-weight: 600; color: #E6EDF3; margin-bottom: 8px;">{header_title}</h3>
+        <div style="font-size: 14px; color: #9AA6B2; line-height: 1.5; margin-bottom: 4px;">
             {header_desc}
         </div>
-        <div style="font-size: 0.8rem; color: #888; margin-top: 4px;">
+        <div style="font-size: 13px; color: #58A6FF; margin-top: 4px;">
             {header_context}
         </div>
     </div>
@@ -656,30 +663,45 @@ with zone_env:
 with zone_agent:
     curr_ep = st.session_state.current_episode
     
-    # Primary Key Metric: Return
-    c_main, c_details = st.columns([1, 3])
-    c_main.metric("Return (Gₜ)", f"{curr_ep['return']:.2f}", help="Gₜ = Summe aller Rewards")
-    
-    # Compact Details Bar
+    # Calculate metrics
     last_act = curr_ep.get('last_action', '-')
     state_str = str(st.session_state.env.agent_pos)
     last_rew = f"{curr_ep.get('last_reward', 0.0):.2f}"
     steps_str = f"{curr_ep['steps']} / 20"
+    ret_str = f"{curr_ep['return']:.2f}"
+
+    # 1. Compact Status Bar (Level 3)
+    st.markdown(f"""
+    <div style="
+        display: flex; 
+        justify-content: space-between; 
+        align-items: center; 
+        padding: 12px 16px; 
+        background-color: #161B22; 
+        border: 1px solid #30363D; 
+        border-radius: 6px; 
+        font-family: 'Roboto Mono', monospace;
+        margin-bottom: 24px; /* Vertical separation */
+    ">
+        <span style="color: #9AA6B2; font-size: 13px;">Episode Steps: <strong style="color: #E6EDF3; font-size: 16px; font-weight: 500;">{steps_str}</strong></span>
+        <span style="color: #9AA6B2; font-size: 13px;">State: <strong style="color: #E6EDF3; font-size: 16px; font-weight: 500;">{state_str}</strong></span>
+        <span style="color: #9AA6B2; font-size: 13px;">rₜ: <strong style="color: #E6EDF3; font-size: 16px; font-weight: 500;">{last_rew}</strong></span>
+        <span style="color: #9AA6B2; font-size: 13px;">Last Action: <strong style="color: #E6EDF3; font-size: 16px; font-weight: 500;">{last_act}</strong></span>
+    </div>
+    """, unsafe_allow_html=True)
     
-    with c_details:
-        st.markdown(f"""
-        <div style="background-color: #111; padding: 10px; border-radius: 5px; border: 1px solid #333; margin-top: 5px;">
-            <span style="color: #bbb; margin-right: 15px;">Episode Steps: <strong style="color: #fff;">{steps_str}</strong></span>
-            <span style="color: #bbb; margin-right: 15px;">State: <strong style="color: #fff;">{state_str}</strong></span>
-            <span style="color: #bbb; margin-right: 15px;">rₜ: <strong style="color: #fff;">{last_rew}</strong></span>
-            <span style="color: #bbb;">Last Action: <strong style="color: #fff;">{last_act}</strong></span>
-        </div>
-        """, unsafe_allow_html=True)
-    
-        if auto_run:
-            st.caption("Auto mode running — open ‘Lernhinweise’ for analysis.")
-        elif curr_ep['steps'] >= 20:
-            st.info("🏁 **Phase Complete:** War dieser Agent effizienter als der vorherige? Warum?")
+    # 2. Return Display (Level 4 - Primary Performance Value)
+    st.markdown(f"""
+    <div style="display: flex; align-items: baseline; margin-bottom: 12px;">
+        <span style="color: #E6EDF3; font-size: 26px; font-weight: 600; margin-right: 12px;">Return (Gₜ):</span>
+        <span style="color: #9BE28A; font-size: 26px; font-weight: 600;">{ret_str}</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if auto_run:
+        st.caption("Auto mode running — open ‘Lernhinweise’ for analysis.")
+    elif curr_ep['steps'] >= 20:
+        st.info("🏁 **Phase Complete:** War dieser Agent effizienter als der vorherige? Warum?")
 
     # --- RESET BUTTON BAR (Zone B Bottom) ---
     st.markdown("---")
