@@ -794,19 +794,30 @@ with zone_didactics:
         with st.expander("📐 Theorie (Optional)"):
             st.write("<b>Policy wird durch Value-Approximation gelernt.</b>", unsafe_allow_html=True)
             st.markdown("- Ziel: Optimale Policy π* finden<br>- Basiert auf Reward-Feedback", unsafe_allow_html=True)
+            st.markdown(r'<div class="notation-badge">Q(s,a) ← r + γ · max Q(s′,a′)</div>', unsafe_allow_html=True)
+            st.markdown("""
+            - `Q(s,a)`: Wert der Action a im State s
+            - `r`: Immediate Reward
+            - `γ`: Discount-Faktor (Gewichtung Zukunft)
+            - `s'`: Nächster State
+            - `max Q`: Beste erwartete zukünftige Bewertung
+            """)
             
-            # TD-Error Explanation
-            st.markdown("#### 1. TD-Error (δ)")
+            st.markdown("---")
+            st.markdown("### TD-Error (δ) – Ergänzung")
+            
+            st.markdown("**1. Formel:**")
             st.latex(r"\delta = r + \gamma \cdot \max_{a'} Q(s', a') - Q(s, a)")
-            
-            st.markdown("#### 2. Update-Regel")
+            st.caption("δ (TD-Error): Lernsignal/Überraschung = Differenz zwischen Zielschätzung und aktueller Schätzung")
+            st.caption("r: Reward; γ: Diskontfaktor; α: Lernrate; max Q: beste erwartete Zukunft")
+
+            st.markdown("**2. Update-Regel:**")
             st.latex(r"Q(s,a) \leftarrow Q(s,a) + \alpha \cdot \delta")
 
-            st.markdown("#### 3. Interpretation")
+            st.markdown("**3. Interpretation:**")
             st.markdown("""
-            - **δ misst Überraschung:** Differenz zwischen Erwartung und Realität.
-            - **δ > 0 (besser als erwartet):** Q-Wert steigt.
-            - **δ < 0 (schlechter als erwartet):** Q-Wert sinkt.
+            - **δ > 0:** Besser als erwartet → Q-Wert steigt.
+            - **δ < 0:** Schlechter als erwartet → Q-Wert sinkt.
             """)
             
             st.caption("Transferfrage: Welche dieser Variablen (`r`, `s`) siehst du direkt in der Status-Zeile?")
@@ -832,7 +843,7 @@ with zone_didactics:
         
         delta_str = f'<span style="color:{delta_color}; font-weight:bold;">{delta_val:+.4f}</span>'
         
-        analysis_text = f"TD-Error (δ): {delta_str} <br> Reward: {st.session_state.env.step_penalty} | γ={gamma}"
+        analysis_text = f"Reward: {st.session_state.env.step_penalty} | γ={gamma} | <span style='color:#8B949E'>δ: {delta_str}</span>"
     
     st.markdown(f"""
     <div style="
