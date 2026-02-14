@@ -498,32 +498,98 @@ def render_grid_html(env, agent_type, percept_enabled, q_agent=None):
 
 # --- 5. MAIN LOOP & LOGIC ---
 
+# --- 5. MAIN LOOP & UI LAYOUT ---
+
 env = st.session_state.env
 
-# Didactic Theory Box
-st.markdown('<div class="theory-box">', unsafe_allow_html=True)
-if agent_type == "Manuell":
-    st.markdown('<div class="theory-title">MODUS: MANUELLE STEUERUNG</div>', unsafe_allow_html=True)
-    st.write("Du bist der Agent. Das **Percept Field** ist dein Sichtbereich (Radius 1). Außerhalb davon ist alles 'Unobserved' (░).")
-    st.write("**Ziel:** Maximiere den Return in 20 Schritten.")
-    st.write("**Mini-Task:** Spiele 10 Schritte mit Percept Field ON und 10 Schritte OFF. Was ändert sich an deiner Strategie?")
-elif agent_type == "Reflex-Agent":
-    st.markdown('<div class="theory-title">MODUS: REFLEX-AGENT (Einfach)</div>', unsafe_allow_html=True)
-    st.image(r"https://latex.codecogs.com/png.latex?\color{green}\text{Aktion}(p) = \text{Regel}[\text{Sensor}(p)]")
-    st.write("Dieser Agent reagiert nur auf sein **Percept**. Er hat KEIN Gedächtnis.")
-    st.caption("Basiert auf der **Markov-Annahme**: Die Entscheidung hängt nur vom aktuellen Wahrnehmungs-Zustand ab.")
-elif agent_type == "Modell-basiert":
-    st.markdown('<div class="theory-title">MODUS: MODELL-BASIERTER REFLEX-AGENT</div>', unsafe_allow_html=True)
-    st.write("Dieser Agent speichert beobachtete Felder in einer **Internal Map**. Er erinnert sich an Wände und besuchte Orte, auch wenn sie nicht mehr im Percept sind.")
-elif agent_type == "Q-Learning":
-    st.markdown('<div class="theory-title">MODUS: Q-LEARNING (Verstärkendes Lernen)</div>', unsafe_allow_html=True)
-    st.write("Der Agent lernt durch **Episoden**. Nutze den 'Train Episodes' Button, um das Lernen zu beschleunigen. Beobachte das Konvergenz-Diagramm unten.")
-    st.caption("Modelliert als **Markov Decision Process (MDP)**. Annahme: Der aktuelle Zustand $s$ (Position) enthält alle nötigen Infos (Markov-Eigenschaft).")
-st.markdown('</div>', unsafe_allow_html=True)
+# 1. DEFINE ZONES (Visual Hierarchy)
+# Zone A: Environment (Top, visual context)
+zone_env = st.container()
 
-# Keyboard Logic (JavaScript Injection)
+# Zone B: Agent Status (Compact, immediate feedback)
+zone_agent = st.container()
+
+# Zone C: Didactics (Collapsible, reflection)
+zone_didactics = st.expander("🎓 Lernhinweise & Reflexion", expanded=False)
+
+# Zone D: Actions (Controls)
+zone_actions = st.container()
+
+
+# 2. FILL ZONE C: DIDACTICS
+with zone_didactics:
+    if agent_type == "Manuell":
+        st.markdown('<div class="theory-title">MODUS: MANUELLE STEUERUNG</div>', unsafe_allow_html=True)
+        st.write("Du bist der Agent. Das **Percept Field** ist dein Sichtbereich (Radius 1). Außerhalb davon ist alles 'Unobserved' (░).")
+        st.write("**Ziel:** Maximiere den Return in 20 Schritten.")
+        st.write("**Mini-Task:** Spiele 10 Schritte mit Percept Field ON und 10 Schritte OFF. Was ändert sich an deiner Strategie?")
+    elif agent_type == "Reflex-Agent":
+        st.markdown('<div class="theory-title">MODUS: REFLEX-AGENT (Einfach)</div>', unsafe_allow_html=True)
+        st.image(r"https://latex.codecogs.com/png.latex?\color{green}\text{Aktion}(p) = \text{Regel}[\text{Sensor}(p)]")
+        st.write("Dieser Agent reagiert nur auf sein **Percept**. Er hat KEIN Gedächtnis.")
+        st.caption("Basiert auf der **Markov-Annahme**: Die Entscheidung hängt nur vom aktuellen Wahrnehmungs-Zustand ab.")
+    elif agent_type == "Modell-basiert":
+        st.markdown('<div class="theory-title">MODUS: MODELL-BASIERTER REFLEX-AGENT</div>', unsafe_allow_html=True)
+        st.write("Dieser Agent speichert beobachtete Felder in einer **Internal Map**. Er erinnert sich an Wände und besuchte Orte, auch wenn sie nicht mehr im Percept sind.")
+    elif agent_type == "Q-Learning":
+        st.markdown('<div class="theory-title">MODUS: Q-LEARNING (Verstärkendes Lernen)</div>', unsafe_allow_html=True)
+        st.write("Der Agent lernt durch **Episoden**. Nutze den 'Train Episodes' Button, um das Lernen zu beschleunigen. Beobachte das Konvergenz-Diagramm unten.")
+        st.caption("Modelliert als **Markov Decision Process (MDP)**. Annahme: Der aktuelle Zustand $s$ (Position) enthält alle nötigen Infos (Markov-Eigenschaft).")
+
+    # Didactic box with live analysis
+    st.info(f"""
+        **🔍 Live-Analyse:**
+        Der Agent versucht, die Summe aus **Schritt-Strafe** ({st.session_state.env.step_penalty}) 
+        und **Ziel-Belohnung** ({st.session_state.env.goal_reward}) zu maximieren.
+    """)
+    st.info("Reflexionsfrage: Welche Information fehlt dir gerade, um optimal zu handeln?")
+
+
+# 3. FILL ZONE A: ENVIRONMENT HEADER
+with zone_env:
+    st.caption("Environment: Grid World")
+    if percept_enabled:
+        st.caption("Observability: Partially Observable (radius = 1)")
+    else:
+        st.caption("Observability: Fully Observable (complete observation)")
+    
+    # Placeholder for the Grid (to be rendered later)
+    grid_placeholder = st.empty()
+
+
+# 4. FILL ZONE B: AGENT METRICS
+with zone_agent:
+    curr_ep = st.session_state.current_episode
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Schritte", f"{curr_ep['steps']} / 20")
+    
+    c2.metric("Current State", str(st.session_state.env.agent_pos))
+    
+    c3.metric("Immediate Reward (rₜ)", f"{curr_ep.get('last_reward', 0.0):.2f}")
+    
+    c4.metric("Return (Gₜ)", f"{curr_ep['return']:.2f}", help="Gₜ = cumulative reward (Summe aller bisherigen Rewards)")
+
+    # Second row for details (Visual reduction)
+    cc1, cc2, cc3, cc4 = st.columns(4)
+    with cc1:
+        st.caption("Explorierst du gerade oder exploitierst du?")
+    with cc3:
+        last_act = curr_ep.get('last_action')
+        if last_act:
+            st.caption(f"Last Action: **{last_act}**")
+        st.caption("rₜ = Reward pro Schritt")
+    with cc4:
+        st.caption("Gₜ = Σ r")
+        
+    if curr_ep['steps'] >= 20:
+        st.info("Auswertung: Wie hat Observability deine Strategy beeinflusst?")
+
+
+# 5. INPUT LOGIC & ACTIONS (Zone D)
+action = None # Initialize action
+
+# Keyboard Logic (Hidden)
 import streamlit.components.v1 as components
-
 js_code = """
 <script>
 const doc = window.parent.document;
@@ -546,60 +612,24 @@ doc.addEventListener('keydown', function(e) {
 """
 components.html(js_code, height=0, width=0)
 
-st.write("Steuerung: Nutze **Pfeiltasten** oder Buttons.")
 
-# Environment & Observability Labeling
-st.caption("Environment: Grid World")
-if percept_enabled:
-    st.caption("Environment: Partially Observable (radius = 1)")
-else:
-    st.caption("Environment: Fully Observable (complete observation)")
-
-# Live Metrics
-curr_ep = st.session_state.current_episode
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Schritte", f"{curr_ep['steps']} / 20")
-c1.caption("Explorierst du gerade oder exploitierst du?")
-
-c2.metric("Current State", str(st.session_state.env.agent_pos))
-
-c3.metric("Immediate Reward (rₜ)", f"{curr_ep.get('last_reward', 0.0):.2f}")
-last_act = curr_ep.get('last_action')
-if last_act:
-    c3.write(f"**Last Action:** {last_act}")
-c3.caption("Reward = Bewertung der aktuellen Action.")
-
-c4.metric("Return (Gₜ)", f"{curr_ep['return']:.2f}", help="Gₜ = cumulative reward (Summe aller bisherigen Rewards)")
-
-st.caption("State = interne Repräsentation des Agenten (hier: Position im Environment).")
-st.caption("rₜ = Reward pro Schritt, Gₜ = Σ r")
-
-if curr_ep['steps'] >= 20:
-    st.info("Auswertung: Wie hat Observability deine Strategy beeinflusst?")
-
-st.info("Reflexionsfrage: Welche Information fehlt dir gerade, um optimal zu handeln?")
-
-# Agent Declaration
+# MANUAL CONTROLS in Zone D
 if agent_type == "Manuell":
-    st.info("**Agent Type:** Human-Controlled Agent  \n**Policy:** Determined by User Input")
-
-action = None # Initialize action
-
-# MANUAL INPUT MAPPING
-if agent_type == "Manuell":
-    st.markdown("### Actions")
-    # Compact Centered Layout
-    _, col_up, _ = st.columns([14, 2, 14])
-    with col_up:
-        if st.button("⬆️", key="btn_up_v2", help="Nach Oben"): action = 0
-            
-    _, col_left, col_down, col_right, _ = st.columns([12, 2, 2, 2, 12])
-    with col_left:
-        if st.button("⬅️", key="btn_left_v2", help="Nach Links"): action = 2
-    with col_down:
-        if st.button("⬇️", key="btn_down_v2", help="Nach Unten"): action = 1
-    with col_right:
-        if st.button("➡️", key="btn_right_v2", help="Nach Rechts"): action = 3
+    with zone_actions:
+        st.markdown("### Actions")
+        st.caption("Steuerung: Nutze **Pfeiltasten** oder Buttons.")
+        # Compact Centered Layout
+        _, col_up, _ = st.columns([14, 2, 14])
+        with col_up:
+            if st.button("⬆️", key="btn_up_v2", help="Nach Oben"): action = 0
+                
+        _, col_left, col_down, col_right, _ = st.columns([12, 2, 2, 2, 12])
+        with col_left:
+            if st.button("⬅️", key="btn_left_v2", help="Nach Links"): action = 2
+        with col_down:
+            if st.button("⬇️", key="btn_down_v2", help="Nach Unten"): action = 1
+        with col_right:
+            if st.button("➡️", key="btn_right_v2", help="Nach Rechts"): action = 3
 
 # AUTOMATIC AGENT LOGIC
 if agent_type != "Manuell":
@@ -610,7 +640,8 @@ if agent_type != "Manuell":
         steps_to_run = 50 
     
     if steps_to_run > 0 and not env.game_over:
-        placeholder = st.empty()
+        # Use the placeholder in Zone A
+        placeholder = grid_placeholder
         
         for _ in range(steps_to_run):
             if env.game_over: break
@@ -708,7 +739,7 @@ if agent_type == "Manuell" and action is not None and not env.game_over:
 # --- 6. RENDERER (ASCII/EMOJI) ---
 if not (agent_type != "Manuell" and auto_run):
     grid_html = render_grid_html(env, agent_type, percept_enabled, st.session_state.q_agent if agent_type == "Q-Learning" else None)
-    st.markdown(grid_html, unsafe_allow_html=True)
+    grid_placeholder.markdown(grid_html, unsafe_allow_html=True)
 
 # Training Progress Visualization
 if agent_type == "Q-Learning" and st.session_state.training_history:
@@ -726,15 +757,8 @@ if agent_type == "Q-Learning" and st.session_state.training_history:
     st.caption("Ziel: Steigende Kurve -> Der Agent maximiert seine Belohnung.")
 
 # --- LIVE ANALYSIS DIDACTIC BOX ---
-st.markdown("---")
-st.info(f"""
-    **🔍 Live-Analyse:**
-    Der Agent versucht, die Summe aus **Schritt-Strafe** ({st.session_state.env.step_penalty}) 
-    und **Ziel-Belohnung** ({st.session_state.env.goal_reward}) zu maximieren.
-    
-    *Tipp: Eine hohe negative Schritt-Strafe zwingt ihn zur Effizienz (kürzester Weg), 
-    während die Wand-Strafe ({st.session_state.env.wall_penalty}) hilft, Kollisionen schnell zu verlernen.*
-""")
+# Moved to Zone C (Didactics) at the top.
+
 
 # Q-Value Heatmap (Subtitle)
 if agent_type == "Q-Learning" and st.session_state.q_agent:
