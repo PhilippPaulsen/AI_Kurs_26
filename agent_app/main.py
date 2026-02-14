@@ -47,7 +47,14 @@ html, body, .stApp {
 
 /* Captions and Help Text */
 [data-testid="stCaptionContainer"], .stCaption {
-    color: var(--text-secondary) !important;
+    color: #B8C1CC !important; /* Increased brightness (was #cccccc or var) */
+    font-weight: 400 !important;
+}
+
+/* Expander Headers */
+.streamlit-expanderHeader {
+    color: #D0D7DE !important; /* Approx 85% white */
+    font-weight: 500 !important;
 }
 
 /* Metrics values */
@@ -297,13 +304,13 @@ st.session_state.agent_str = agent_type
 # Progression Display
 st.sidebar.caption("Entwicklungsstufe:")
 if agent_type == "Reflex-Agent":
-    st.sidebar.markdown("**Reactive** → Model-Based → Learning")
+    st.sidebar.markdown("<span style='color:#B8C1CC; font-weight:500;'>**Reactive**</span> <span style='color:#8B949E;'>→ Model-Based → Learning</span>", unsafe_allow_html=True)
 elif agent_type == "Modell-basiert":
-    st.sidebar.markdown("Reactive → **Model-Based** → Learning")
+    st.sidebar.markdown("<span style='color:#8B949E;'>Reactive →</span> <span style='color:#B8C1CC; font-weight:500;'>**Model-Based**</span> <span style='color:#8B949E;'>→ Learning</span>", unsafe_allow_html=True)
 elif agent_type == "Q-Learning":
-    st.sidebar.markdown("Reactive → Model-Based → **Learning**")
+    st.sidebar.markdown("<span style='color:#8B949E;'>Reactive → Model-Based →</span> <span style='color:#B8C1CC; font-weight:500;'>**Learning**</span>", unsafe_allow_html=True)
 else: # Manual
-    st.sidebar.markdown("<span style='color:#777'>Reactive → Model-Based → Learning</span>", unsafe_allow_html=True)
+    st.sidebar.markdown("<span style='color:#8B949E'>Reactive → Model-Based → Learning</span>", unsafe_allow_html=True)
 
 # Q-Params (Context Sensitive)
 alpha, gamma, epsilon = 0.5, 0.9, 0.1
@@ -646,10 +653,10 @@ with zone_env:
     st.markdown(f"""
     <div style="margin-bottom: 12px;">
         <h3 style="margin: 0; padding: 0; font-size: 22px; font-weight: 600; color: #E6EDF3; margin-bottom: 8px;">{header_title}</h3>
-        <div style="font-size: 14px; color: #9AA6B2; line-height: 1.5; margin-bottom: 4px;">
+        <div style="font-size: 14px; color: #B8C1CC; line-height: 1.5; margin-bottom: 4px;"> <!-- Increased contrast -->
             {header_desc}
         </div>
-        <div style="font-size: 13px; color: #58A6FF; margin-top: 4px;">
+        <div style="font-size: 13px; color: #8B949E; margin-top: 4px;"> <!-- Micro-text contrast -->
             {header_context}
         </div>
     </div>
@@ -683,10 +690,10 @@ with zone_agent:
         font-family: 'Roboto Mono', monospace;
         margin-bottom: 24px; /* Vertical separation */
     ">
-        <span style="color: #9AA6B2; font-size: 13px;">Episode Steps: <strong style="color: #E6EDF3; font-size: 16px; font-weight: 500;">{steps_str}</strong></span>
-        <span style="color: #9AA6B2; font-size: 13px;">State: <strong style="color: #E6EDF3; font-size: 16px; font-weight: 500;">{state_str}</strong></span>
-        <span style="color: #9AA6B2; font-size: 13px;">rₜ: <strong style="color: #E6EDF3; font-size: 16px; font-weight: 500;">{last_rew}</strong></span>
-        <span style="color: #9AA6B2; font-size: 13px;">Last Action: <strong style="color: #E6EDF3; font-size: 16px; font-weight: 500;">{last_act}</strong></span>
+        <span style="color: #8B949E; font-size: 13px;">Episode Steps: <strong style="color: #E6EDF3; font-size: 16px; font-weight: 500;">{steps_str}</strong></span>
+        <span style="color: #8B949E; font-size: 13px;">State: <strong style="color: #E6EDF3; font-size: 16px; font-weight: 500;">{state_str}</strong></span>
+        <span style="color: #8B949E; font-size: 13px;">rₜ: <strong style="color: #E6EDF3; font-size: 16px; font-weight: 500;">{last_rew}</strong></span>
+        <span style="color: #8B949E; font-size: 13px;">Last Action: <strong style="color: #E6EDF3; font-size: 16px; font-weight: 500;">{last_act}</strong></span>
     </div>
     """, unsafe_allow_html=True)
     
@@ -699,7 +706,7 @@ with zone_agent:
     """, unsafe_allow_html=True)
 
     if auto_run:
-        st.caption("Auto mode running — open ‘Lernhinweise’ for analysis.")
+        st.markdown("<p style='color: #C9D1D9; font-size: 0.9em; font-style: italic;'>Auto mode running — open ‘Lernhinweise’ for analysis.</p>", unsafe_allow_html=True)
     elif curr_ep['steps'] >= 20:
         st.info("🏁 **Phase Complete:** War dieser Agent effizienter als der vorherige? Warum?")
 
