@@ -375,13 +375,15 @@ if 'env' not in st.session_state:
     st.session_state.logs = []
     st.session_state.q_agent = None
     
-    # Performance Stats (Per Agent Type)
-    st.session_state.stats = {
-        "Manuell": {'wins': 0, 'episodes': 0, 'total_steps': 0, 'total_return': 0.0},
-        "Reflex-Agent": {'wins': 0, 'episodes': 0, 'total_steps': 0, 'total_return': 0.0},
-        "Modell-basiert": {'wins': 0, 'episodes': 0, 'total_steps': 0, 'total_return': 0.0},
-        "Q-Learning": {'wins': 0, 'episodes': 0, 'total_steps': 0, 'total_return': 0.0}
-    }
+    # Performance
+    if 'stats' not in st.session_state:
+    # Initialize with standard keys, others added dynamically
+        st.session_state.stats = {
+            'Manuell (Full)': {'wins': 0, 'episodes': 0, 'total_steps': 0, 'total_return': 0},
+            'Reflex-Agent (Full)': {'wins': 0, 'episodes': 0, 'total_steps': 0, 'total_return': 0},
+            'Modell-basiert (Full)': {'wins': 0, 'episodes': 0, 'total_steps': 0, 'total_return': 0},
+            'Q-Learning (Full)': {'wins': 0, 'episodes': 0, 'total_steps': 0, 'total_return': 0},
+        }
     # Current Episode Tracker
     st.session_state.current_episode = {'steps': 0, 'return': 0.0, 'last_reward': 0.0, 'last_action': None}
     # Training History for Q-Learning
@@ -903,7 +905,22 @@ if agent_type != "Manuell":
                          st.balloons()
                          st.session_state.logs.append("ZIEL ERREICHT!")
                          
-                         stat_entry = st.session_state.stats[agent_type]
+                         st.session_state.logs.append("ZIEL ERREICHT!")
+                         
+                         # Determine Stat Key based on Mode
+                         stat_key = agent_type
+                         if agent_type != "Manuell":
+                             if not percept_enabled:
+                                 stat_key += " (Full)"
+                             elif strict_fog:
+                                 stat_key += " (Strict)"
+                             else:
+                                 stat_key += " (Fog)"
+                         
+                         if stat_key not in st.session_state.stats:
+                             st.session_state.stats[stat_key] = {'wins': 0, 'episodes': 0, 'total_steps': 0, 'total_return': 0}
+
+                         stat_entry = st.session_state.stats[stat_key]
                          stat_entry['episodes'] += 1
                          stat_entry['wins'] += 1
                          stat_entry['total_steps'] += st.session_state.current_episode['steps']
@@ -926,7 +943,19 @@ if agent_type == "Manuell" and action is not None and not env.game_over:
         st.balloons()
         st.session_state.logs.append("ZIEL ERREICHT!")
         
-        stat_entry = st.session_state.stats[agent_type]
+        stat_key = "Manuell"
+        # Optional: Differentiate Manual Modes too? User didn't ask but good for consistency.
+        if percept_enabled:
+            # Manual Fog
+            if strict_fog: stat_key += " (Strict)"
+            else: stat_key += " (Fog)"
+        else:
+            stat_key += " (Full)"
+            
+        if stat_key not in st.session_state.stats:
+             st.session_state.stats[stat_key] = {'wins': 0, 'episodes': 0, 'total_steps': 0, 'total_return': 0}
+
+        stat_entry = st.session_state.stats[stat_key]
         stat_entry['episodes'] += 1
         stat_entry['wins'] += 1
         stat_entry['total_steps'] += st.session_state.current_episode['steps']

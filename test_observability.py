@@ -67,6 +67,32 @@ def test_environment_randomization():
     else:
         print("FAIL: Start or Goal positions did not vary enough.")
 
+def test_observability():
+    print("\n--- Test Observability ---")
+    env = Environment(10, 10)
+    
+    # Initialize session state for stats
+    st.session_state.stats = {}
+    
+    # Simulate a Reflex Agent run in Fog mode
+    reflex_agent = ReflexAgent(env)
+    obs_fog = env.get_observation(percept_enabled=True)
+    reflex_agent.act(obs_fog) # This should trigger stats update
+    
+    # Verify Stats Key Format
+    # Logic changed: Keys now include mode suffix
+    # e.g. "Reflex-Agent (Fog)"
+    found_key = False
+    for key in st.session_state.stats.keys():
+        if "Reflex-Agent" in key and "(Fog)" in key:
+            found_key = True
+            break
+    
+    if found_key:
+        print("PASS: Stats key includes mode suffix.")
+    else:
+        print(f"FAIL: Stats key for Reflex Fog not found. Keys: {list(st.session_state.stats.keys())}")
+
 def test_get_observation():
     print("\n--- Test get_observation ---")
     env = Environment(10, 10)
