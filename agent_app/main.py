@@ -403,8 +403,9 @@ if grid_n != st.session_state.env.width:
     st.session_state.q_agent = None # Reset Q
     st.session_state.training_history = []
 
-# Percept Field Toggle (Moved up for availability)
-percept_enabled = st.sidebar.checkbox("Percept Field (Sichtfeld)", value=True, help="Wenn aktiv, sieht der Agent nur benachbarte Felder (Radius 1).")
+# Percept Value (Read from Session State for Availability, Rendered Later)
+# Default to True if not yet in state
+percept_enabled = st.session_state.get('percept_field_on', True) 
 
 # Agent Select
 agent_type = st.sidebar.selectbox("Agenten Intelligenz", ["Manuell", "Reflex-Agent", "Modell-basiert", "Q-Learning"])
@@ -489,6 +490,7 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("Simulations-Steuerung")
 auto_run = st.sidebar.checkbox("Auto-Lauf (Simulation)", value=False)
 speed = st.sidebar.slider("Geschwindigkeit (Wartezeit in s)", 0.0, 1.0, 0.2)
+st.sidebar.checkbox("Percept Field (Sichtfeld)", value=True, key='percept_field_on', help="Wenn aktiv, sieht der Agent nur benachbarte Felder (Radius 1).")
 
 
 
