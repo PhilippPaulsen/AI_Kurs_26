@@ -14,7 +14,7 @@ st.markdown("""
 
 html, body, .stApp {
     background-color: #000000;
-    color: #e0e0e0;
+    color: #ffffff;
     font-family: 'Roboto Mono', monospace;
 }
 
@@ -22,6 +22,25 @@ html, body, .stApp {
 [data-testid="stSidebar"] {
     background-color: #0a0a0a;
     border-right: 1px solid #333;
+}
+
+/* Streamlit Widget Labels */
+[data-testid="stWidgetLabel"] p {
+    color: #ffffff !important;
+    font-weight: 500 !important;
+}
+
+/* Sidebar Titles and Subheaders */
+[data-testid="stSidebar"] h1, 
+[data-testid="stSidebar"] h2, 
+[data-testid="stSidebar"] h3 {
+    color: #00ff00 !important;
+    text-shadow: 0 0 5px rgba(0, 255, 0, 0.2);
+}
+
+/* Sidebar Section Dividers/Labels */
+.st-emotion-cache-1vt4y6f {
+    color: #00ff00 !important;
 }
 
 /* Grid Container */
