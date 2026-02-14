@@ -804,20 +804,30 @@ with zone_didactics:
             """)
             
             st.markdown("---")
-            st.markdown("### TD-Error (δ) – Ergänzung")
+            st.write("<b>TD-Error (δ) – Ergänzung</b>", unsafe_allow_html=True)
             
-            st.markdown("**1. Formel:**")
-            st.latex(r"\delta = r + \gamma \cdot \max_{a'} Q(s', a') - Q(s, a)")
-            st.caption("δ (TD-Error): Lernsignal/Überraschung = Differenz zwischen Zielschätzung und aktueller Schätzung")
-            st.caption("r: Reward; γ: Diskontfaktor; α: Lernrate; max Q: beste erwartete Zukunft")
-
-            st.markdown("**2. Update-Regel:**")
-            st.latex(r"Q(s,a) \leftarrow Q(s,a) + \alpha \cdot \delta")
-
-            st.markdown("**3. Interpretation:**")
+            # 1. Formula
+            st.markdown("1. Formel:")
+            st.markdown(r'<div class="notation-badge">δ = r + γ · max Q(s′,a′) − Q(s,a)</div>', unsafe_allow_html=True)
             st.markdown("""
-            - **δ > 0:** Besser als erwartet → Q-Wert steigt.
-            - **δ < 0:** Schlechter als erwartet → Q-Wert sinkt.
+            - `δ` (TD-Error): Lernsignal/Überraschung (Differenz zwischen Ziel und Ist)
+            - `r`: Reward (sofortige Belohnung)
+            - `γ`: Diskontfaktor (Gewichtung Zukunft)
+            - `max Q`: Beste erwartete Zukunft
+            """)
+
+            # 2. Update Rule
+            st.markdown("2. Update-Regel:")
+            st.markdown(r'<div class="notation-badge">Q(s,a) ← Q(s,a) + α · δ</div>', unsafe_allow_html=True)
+            st.markdown("""
+            - `α`: Lernrate (wie stark Q angepasst wird)
+            """)
+
+            # 3. Interpretation
+            st.markdown("3. Interpretation:")
+            st.markdown("""
+            - **δ > 0**: Besser als erwartet → Q-Wert steigt
+            - **δ < 0**: Schlechter als erwartet → Q-Wert sinkt
             """)
             
             st.caption("Transferfrage: Welche dieser Variablen (`r`, `s`) siehst du direkt in der Status-Zeile?")
