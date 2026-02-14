@@ -32,7 +32,12 @@ html, body, .stApp {
 
 /* Metrics labels */
 [data-testid="stMetricLabel"] {
-    color: #bbbbbb !important;
+    color: #e0e0e0 !important;
+}
+
+/* Captions and Help Text */
+[data-testid="stCaptionContainer"], .stCaption {
+    color: #cccccc !important;
 }
 
 /* Metrics values */
