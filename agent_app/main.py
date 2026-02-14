@@ -689,6 +689,19 @@ with zone_didactics:
         margin-right: 5px;
         border: 1px solid #555;
     }
+    .notation-badge {
+        background-color: #161B22;
+        color: #E6EDF3;
+        padding: 4px 8px;
+        border-radius: 4px;
+        border: 1px solid #30363D;
+        font-family: monospace;
+        font-weight: 600;
+    }
+    .term-highlight {
+        font-weight: 600;
+        color: #D2A8FF; /* Light purple for terms */
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -702,16 +715,16 @@ with zone_didactics:
         with st.expander("Antwortvorschlag anzeigen"):
             st.markdown("- Percept (Sichtfeld)\n- Ziel-Position\n- Hindernisse")
 
-        st.write("**Frage:** Wie würdest du deine Policy beschreiben?")
+        st.write("**Frage:** Wie würdest du deine <span class='term-highlight' title='Entscheidungsregel: Wie verhalte ich mich in Situation X?'>Policy</span> beschreiben?", unsafe_allow_html=True)
         with st.expander("Antwortvorschlag anzeigen"):
             st.markdown("- Wenn-Dann-Regeln\n- Heuristik (z.B. immer Richtung Ziel)")
 
         with st.expander("📐 Theorie (Optional)"):
             st.write("<b>Policy wird vollständig extern (vom Menschen) bestimmt.</b>", unsafe_allow_html=True)
             st.markdown("- Agent = Perception → Action<br>- Kein automatisches Lernen", unsafe_allow_html=True)
-            st.markdown(r"**Notation:** `π(a|p)`")
+            st.markdown(r'<span class="notation-badge">Notation: π(a|p)</span>', unsafe_allow_html=True)
             st.markdown("""
-            - `π`: Policy (Entscheidungsregel)
+            - `π`: **Policy** (Entscheidungsregel)
             - `a`: Action
             - `p`: Percept (Beobachtung)
             """)
@@ -728,8 +741,9 @@ with zone_didactics:
 
         with st.expander("📐 Theorie (Optional)"):
             st.write("<b>Action basiert ausschließlich auf aktuellem Percept.</b>", unsafe_allow_html=True)
-            st.markdown("- Keine Abhängigkeit von State<br>- Annahme: Markov Property", unsafe_allow_html=True)
-            st.markdown(r"**Notation:** `a = π(p)`")
+            st.markdown("- Keine Abhängigkeit von State<br>- Annahme: <span class='term-highlight' title='Entscheidung hängt nur von aktueller Beobachtung ab, nicht von der Vergangenheit.'>Markov Property</span>", unsafe_allow_html=True)
+            st.caption("Markov Property: Die Entscheidung hängt nur vom aktuellen Percept ab, nicht von der Vergangenheit.")
+            st.markdown(r'<span class="notation-badge">Notation: a = π(p)</span>', unsafe_allow_html=True)
             st.markdown("""
             - `p`: Aktuelles Percept
             - `a`: Daraus abgeleitete Action
@@ -748,7 +762,7 @@ with zone_didactics:
         with st.expander("📐 Theorie (Optional)"):
             st.write("<b>Interner State erweitert die Information.</b>", unsafe_allow_html=True)
             st.markdown("- Entscheidung basiert auf State, nicht nur Perception<br>- Gedächtnis kompensiert Lücken", unsafe_allow_html=True)
-            st.markdown(r"**Notation:** `Stateₜ = f(Stateₜ₋₁, Perceptₜ)`")
+            st.markdown(r'<span class="notation-badge">Notation: Stateₜ = f(Stateₜ₋₁, Perceptₜ)</span>', unsafe_allow_html=True)
             st.markdown("""
             - `Stateₜ`: Interner Zustand (t)
             - `Stateₜ₋₁`: Vorheriger Zustand
@@ -761,10 +775,10 @@ with zone_didactics:
         st.write("Policy wird durch Reward-Lernen angepasst.")
         st.markdown('<span class="agent-tag">Policy: learned</span> <span class="agent-tag">Memory: Q-table</span> <span class="agent-tag">Exploration: ε-greedy</span>', unsafe_allow_html=True)
         st.write("---")
-        st.markdown("**🎯 Lernfokus:** Exploration vs. Exploitation.")
+        st.markdown("**🎯 Lernfokus:** <span class='term-highlight'>Exploration</span> vs. <span class='term-highlight'>Exploitation</span>.", unsafe_allow_html=True)
         st.write("**Frage:** Wie beeinflusst ε das Verhalten?")
         with st.expander("Antwortvorschlag anzeigen"):
-             st.markdown("- Höheres ε → mehr Exploration (Zufall)\n- Niedrigeres ε → mehr Exploitation (Gier)\n- Zu hohes ε verhindert Konvergenz")
+             st.markdown("- Höheres ε → mehr **Exploration** (Zufall, Neues ausprobieren)\n- Niedrigeres ε → mehr **Exploitation** (Gier, Bestes nutzen)\n- Zu hohes ε verhindert **Konvergenz**")
 
         st.write("**Frage:** Warum steigt der Return mit Training?")
         with st.expander("Antwortvorschlag anzeigen"):
@@ -773,7 +787,7 @@ with zone_didactics:
         with st.expander("📐 Theorie (Optional)"):
             st.write("<b>Policy wird durch Value-Approximation gelernt.</b>", unsafe_allow_html=True)
             st.markdown("- Ziel: Optimale Policy π* finden<br>- Basiert auf Reward-Feedback", unsafe_allow_html=True)
-            st.latex(r"Q(s,a) \leftarrow r + \gamma \max_{a'} Q(s',a')")
+            st.markdown(r'<div class="notation-badge">Q(s,a) ← r + γ · max Q(s′,a′)</div>', unsafe_allow_html=True)
             st.markdown("""
             - `Q(s,a)`: Wert der Action a im State s
             - `r`: Immediate Reward
@@ -785,7 +799,7 @@ with zone_didactics:
 
     # Didactic box with live analysis
     analysis_text = ""
-    if agent_type == "Manual":
+    if agent_type == "Manuell":
         analysis_text = "Du entscheidest selbst. Deine Strategie bestimmt den Erfolg."
     elif agent_type == "Reflex-Agent":
         analysis_text = "Der Agent reagiert blind auf das aktuelle Feld. Ohne Gedächtnis tappt er in Fallen."
@@ -794,7 +808,20 @@ with zone_didactics:
     elif agent_type == "Q-Learning":
         analysis_text = f"Der Agent aktualisiert Q(s,a) basierend auf Reward ({st.session_state.env.step_penalty}) und Zukunftserwartung (γ={gamma})."
     
-    st.info(f"**🔍 Live-Analyse:** {analysis_text}")
+    st.markdown(f"""
+    <div style="
+        background-color: #1F2937; 
+        color: #F0F6FC; 
+        padding: 12px; 
+        border-radius: 6px; 
+        border-left: 4px solid #3B82F6;
+        margin-top: 10px;
+        margin-bottom: 10px;
+        font-size: 0.95em;
+    ">
+        <strong>🔍 Live-Analyse:</strong> {analysis_text}
+    </div>
+    """, unsafe_allow_html=True)
 
     if not auto_run:
         st.caption("Reflexionsfrage: Welche Information fehlt dir gerade, um optimal zu handeln?")
