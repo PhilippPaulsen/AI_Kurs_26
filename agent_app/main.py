@@ -225,6 +225,7 @@ class QAgent:
         self.epsilon = epsilon
         self.prev_s = None
         self.prev_a = None
+        self.last_td_error = 0.0
         
     def act(self, s):
         if random.random() < self.epsilon:
@@ -243,7 +244,13 @@ class QAgent:
         old_q = self.q[self.prev_s[0], self.prev_s[1], self.prev_a]
         next_max = np.max(self.q[s_next[0], s_next[1]])
         
-        new_q = old_q + self.alpha * (r + self.gamma * next_max - old_q)
+        # Calculate TD-Error (delta)
+        target = r + self.gamma * next_max
+        delta = target - old_q
+        self.last_td_error = delta
+
+        # Update Q-Value
+        new_q = old_q + self.alpha * delta
         self.q[self.prev_s[0], self.prev_s[1], self.prev_a] = new_q
         
         # Didactic Log (Only log occasionally or detailed mode?)
@@ -787,14 +794,21 @@ with zone_didactics:
         with st.expander("📐 Theorie (Optional)"):
             st.write("<b>Policy wird durch Value-Approximation gelernt.</b>", unsafe_allow_html=True)
             st.markdown("- Ziel: Optimale Policy π* finden<br>- Basiert auf Reward-Feedback", unsafe_allow_html=True)
-            st.markdown(r'<div class="notation-badge">Q(s,a) ← r + γ · max Q(s′,a′)</div>', unsafe_allow_html=True)
+            
+            # TD-Error Explanation
+            st.markdown("#### 1. TD-Error (δ)")
+            st.latex(r"\delta = r + \gamma \cdot \max_{a'} Q(s', a') - Q(s, a)")
+            
+            st.markdown("#### 2. Update-Regel")
+            st.latex(r"Q(s,a) \leftarrow Q(s,a) + \alpha \cdot \delta")
+
+            st.markdown("#### 3. Interpretation")
             st.markdown("""
-            - `Q(s,a)`: Wert der Action a im State s
-            - `r`: Immediate Reward
-            - `γ`: Discount-Faktor (Gewichtung Zukunft)
-            - `s'`: Nächster State
-            - `max Q`: Beste erwartete zukünftige Bewertung
+            - **δ misst Überraschung:** Differenz zwischen Erwartung und Realität.
+            - **δ > 0 (besser als erwartet):** Q-Wert steigt.
+            - **δ < 0 (schlechter als erwartet):** Q-Wert sinkt.
             """)
+            
             st.caption("Transferfrage: Welche dieser Variablen (`r`, `s`) siehst du direkt in der Status-Zeile?")
 
     # Didactic box with live analysis
@@ -806,7 +820,19 @@ with zone_didactics:
     elif agent_type == "Modell-basiert":
         analysis_text = "Die interne Karte wächst mit jedem Schritt. Der Agent plant aber nicht weit voraus."
     elif agent_type == "Q-Learning":
-        analysis_text = f"Der Agent aktualisiert Q(s,a) basierend auf Reward ({st.session_state.env.step_penalty}) und Zukunftserwartung (γ={gamma})."
+        # Get Delta from Agent
+        delta_val = 0.0
+        if st.session_state.q_agent:
+             delta_val = st.session_state.q_agent.last_td_error
+        
+        # Color Code Delta
+        delta_color = "#999" # Grey
+        if delta_val > 0.001: delta_color = "#2EA043" # Green
+        elif delta_val < -0.001: delta_color = "#DA3633" # Red
+        
+        delta_str = f'<span style="color:{delta_color}; font-weight:bold;">{delta_val:+.4f}</span>'
+        
+        analysis_text = f"TD-Error (δ): {delta_str} <br> Reward: {st.session_state.env.step_penalty} | γ={gamma}"
     
     st.markdown(f"""
     <div style="
