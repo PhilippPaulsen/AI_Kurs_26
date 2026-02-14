@@ -703,8 +703,9 @@ with zone_didactics:
         
         with st.expander("📐 Theorie (Optional)"):
             st.write("<b>Policy wird vollständig extern (vom Menschen) bestimmt.</b>", unsafe_allow_html=True)
-            st.markdown("- Agent = Perception → Action\n- Kein automatisches Lernen\n- Performance hängt von Strategy ab")
-            st.markdown(r"Notation: $\pi(a|p)$")
+            st.markdown("- Agent = Perception → Action<br>- Kein automatisches Lernen", unsafe_allow_html=True)
+            st.markdown(r"**Notation:** `π(a|p)`")
+            st.markdown("- `π`: Policy (Entscheidungsregel)<br>- `a`: Action<br>- `p`: Percept (Beobachtung)", unsafe_allow_html=True)
             st.caption("Transferfrage: Wie würdest du deine eigene Policy formalisieren?")
 
     elif agent_type == "Reflex-Agent":
@@ -716,9 +717,10 @@ with zone_didactics:
             st.markdown("- Warum wiederholt der Agent möglicherweise ineffiziente Bewegungen?\n- Welche Information fehlt ihm?\n- Würde ein internes State-Modell helfen?")
         
         with st.expander("📐 Theorie (Optional)"):
-            st.write("<b>Action basiert ausschließlich auf aktuellem Percept (kein Memory).</b>", unsafe_allow_html=True)
-            st.markdown("- Markov-Annahme\n- Keine interne State-Erweiterung\n- Problematisch bei Partial Observability")
-            st.markdown(r"Notation: $a = \pi(p)$")
+            st.write("<b>Action basiert ausschließlich auf aktuellem Percept.</b>", unsafe_allow_html=True)
+            st.markdown("- Keine Abhängigkeit von State<br>- Annahme: Markov Property", unsafe_allow_html=True)
+            st.markdown(r"**Notation:** `a = π(p)`")
+            st.markdown("- `p`: Aktuelles Percept<br>- `a`: Daraus abgeleitete Action", unsafe_allow_html=True)
             st.caption("Transferfrage: Warum kann der Agent ineffiziente Zyklen wiederholen?")
 
     elif agent_type == "Modell-basiert":
@@ -730,9 +732,10 @@ with zone_didactics:
             st.markdown("- Welche Information speichert der Agent?\n- Wann ist Model-Based besser als Reflex?\n- Ist der Agent jetzt optimal oder nur informierter?")
             
         with st.expander("📐 Theorie (Optional)"):
-            st.write("<b>Interner State erweitert die Information über das aktuelle Percept hinaus.</b>", unsafe_allow_html=True)
-            st.markdown("- State ≠ Perception\n- Gedächtnis kompensiert Informationslücken\n- Besser bei Partial Observability")
-            st.latex(r"State_t = f(State_{t-1}, Percept_t)")
+            st.write("<b>Interner State erweitert die Information.</b>", unsafe_allow_html=True)
+            st.markdown("- Entscheidung basiert auf State, nicht nur Perception<br>- Gedächtnis kompensiert Lücken", unsafe_allow_html=True)
+            st.markdown(r"**Notation:** `Stateₜ = f(Stateₜ₋₁, Perceptₜ)`")
+            st.markdown("- `Stateₜ`: Interner Zustand (t)<br>- `Perceptₜ`: Aktuelle Beobachtung<br>- `f`: Update-Funktion", unsafe_allow_html=True)
             st.caption("Transferfrage: Welche Information speichert der Agent zusätzlich?")
 
     elif agent_type == "Q-Learning":
@@ -744,9 +747,10 @@ with zone_didactics:
             st.markdown("- Wie beeinflusst ε das Verhalten?\n- Warum steigt der Return mit Training?\n- Was bedeutet Konvergenz?")
 
         with st.expander("📐 Theorie (Optional)"):
-            st.write("<b>Policy wird durch iteratives Reward-Lernen optimiert.</b>", unsafe_allow_html=True)
-            st.markdown("- Exploration vs. Exploitation\n- Value-basierte Entscheidung\n- Konvergenz bei ausreichend Training")
-            st.latex(r"Q(s,a) \leftarrow r + \gamma \max Q(s',a')")
+            st.write("<b>Policy wird durch Value-Approximation gelernt.</b>", unsafe_allow_html=True)
+            st.markdown("- Ziel: Optimale Policy π* finden<br>- Basiert auf Reward-Feedback", unsafe_allow_html=True)
+            st.latex(r"Q(s,a) \leftarrow r + \gamma \max_{a'} Q(s',a')")
+            st.markdown("- `s`: State, `a`: Action, `r`: Reward<br>- `γ`: Discount-Faktor, `s'`: Next State<br>- `max Q`: Erwarteter zukünftiger Wert", unsafe_allow_html=True)
             st.caption("Transferfrage: Wie beeinflusst ε die Balance zwischen Exploration und Exploitation?")
 
     # Didactic box with live analysis
