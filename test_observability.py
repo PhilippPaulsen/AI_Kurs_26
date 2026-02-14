@@ -224,11 +224,19 @@ def test_render_grid_html():
 
     # Test Full Mode Render
     try:
-        html = render_grid_html(env, "Q-Learning", percept_enabled=False, q_agent=qa)
+        html = render_grid_html(env, "Q-Learning", percept_enabled=False, strict_fog=False, q_agent=qa)
         assert isinstance(html, str)
         print("PASS: render_grid_html works in Full Mode.")
     except Exception as e:
         print(f"FAIL: render_grid_html failed in Full Mode: {e}")
+
+    # Test Strict Fog Render
+    try:
+        html = render_grid_html(env, "Q-Learning", percept_enabled=True, strict_fog=True, q_agent=qa)
+        assert isinstance(html, str)
+        print("PASS: render_grid_html works in Strict Fog Mode.")
+    except Exception as e:
+        print(f"FAIL: render_grid_html failed in Strict Fog Mode: {e}")
 
 def test_strict_fog_behavior():
     print("\n--- Test Strict Fog Behavior ---")

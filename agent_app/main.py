@@ -576,7 +576,7 @@ def get_model_based_action(start_pos, goal_pos, grid_memory, height, width):
     # No path found? Random walk.
     return random.randint(0, 3)
 
-def render_grid_html(env, agent_type, percept_enabled, q_agent=None):
+def render_grid_html(env, agent_type, percept_enabled, strict_fog=False, q_agent=None):
     # Radius 1 for Percept
     visible_mask = env.get_percept_view(radius=1) if percept_enabled else {(r,c) for r in range(env.height) for c in range(env.width)}
     
@@ -608,10 +608,13 @@ def render_grid_html(env, agent_type, percept_enabled, q_agent=None):
                                     val = env.grid[nr, nc]
                                 syn_view[(nr, nc)] = val
                     
+                    # Strict Fog: Hide Goal
+                    syn_goal_pos = env.goal_pos if not strict_fog else None
+
                     syn_obs = {
                         'mode': 'fog',
                         'agent_pos': (r, c),
-                        'goal_pos': env.goal_pos,
+                        'goal_pos': syn_goal_pos,
                         'view': syn_view,
                         'is_game_over': False
                     }
@@ -1265,7 +1268,8 @@ with st.sidebar.expander("Perception (Current Observation)", expanded=True):
 
 # --- 6. RENDERER (ASCII/EMOJI) ---
 if not (agent_type != "Manuell" and auto_run):
-    grid_html = render_grid_html(env, agent_type, percept_enabled, st.session_state.q_agent if agent_type == "Q-Learning" else None)
+    strict_fog = st.session_state.get('strict_fog_on', False) if percept_enabled else False
+    grid_html = render_grid_html(env, agent_type, percept_enabled, strict_fog, st.session_state.q_agent if agent_type == "Q-Learning" else None)
     grid_placeholder.markdown(grid_html, unsafe_allow_html=True)
 
 # Training Progress Visualization
@@ -1320,10 +1324,11 @@ if agent_type == "Q-Learning" and st.session_state.q_agent:
                             syn_view[(nr, nc)] = val
                 
                 # Synthesize Obs
+                syn_goal_pos = st.session_state.env.goal_pos if not strict_fog else None
                 syn_obs = {
                     'mode': 'fog',
                     'agent_pos': (r, c),
-                    'goal_pos': st.session_state.env.goal_pos,
+                    'goal_pos': syn_goal_pos,
                     'view': syn_view,
                     'is_game_over': False # Irrelevant for state encoding
                 }
