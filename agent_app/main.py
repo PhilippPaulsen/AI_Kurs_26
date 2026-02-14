@@ -318,10 +318,10 @@ if agent_type == "Q-Learning":
     st.sidebar.markdown("---")
     st.sidebar.subheader("Hyperparameter (Lernen)")
     alpha = st.sidebar.slider("Alpha (Lernrate)", 0.1, 1.0, 0.5, help="Lernrate (0.0 - 1.0). Bestimmt, wie stark neue Informationen alte überschreiben (0.5 = balanciert).")
-    gamma = st.sidebar.slider("Gamma (Diskount)", 0.1, 1.0, 0.9, help="Diskount-Faktor (0.0 - 1.0). Wichtigkeit zukünftiger Belohnungen. Nahe 1 (z.B. 0.9) fördert langfristiges Planen.")
-    epsilon = st.sidebar.slider("Epsilon (Exploration)", 0.0, 1.0, 0.1, help="Explorations-Rate (0.0 - 1.0). Wahrscheinlichkeit für zufällige Züge, um Neues zu entdecken und lokalen Optima zu entkommen.")
+    gamma = st.sidebar.slider("Gamma (Diskount)", 0.1, 1.0, 0.9, help="Discount-Faktor: wie stark zukünftige Rewards zählen. Höher → langfristiger planen; niedriger → kurzfristiger optimieren.")
+    epsilon = st.sidebar.slider("Epsilon (Exploration)", 0.0, 1.0, 0.1, help="Exploration Rate (ε-greedy). Höher → mehr Ausprobieren (langsamer, aber robuster); niedriger → mehr Exploitation (schneller, Risiko lokaler Optima).")
     
-    train_episodes = st.sidebar.slider("Training-Episoden", 1, 500, 50)
+    train_episodes = st.sidebar.slider("Training-Episoden", 1, 500, 50, help="Mehr Episoden = mehr Updates der Policy/Q-Table. Führt i. d. R. zu stabilerer Lernkurve (Konvergenz), kostet aber Zeit.")
     if st.sidebar.button(f"Train Episodes ({train_episodes}x)"):
         # Training Loop
         progress_bar = st.sidebar.progress(0)
@@ -383,9 +383,9 @@ percept_enabled = st.sidebar.checkbox("Percept Field (Sichtfeld)", value=True, h
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("Umgebungs-Konfiguration")
-env_step_penalty = st.sidebar.slider("Schritt-Strafe (Kosten)", -2.0, 0.0, -0.1, 0.1, help="Kosten (negativ) für jeden Schritt.")
-env_wall_penalty = st.sidebar.slider("Wand-Strafe (Kollision)", -10.0, -1.0, -5.0, 1.0, help="Strafe (negativ) für das Laufen gegen eine Wand.")
-env_goal_reward = st.sidebar.slider("Ziel-Belohnung", 10.0, 200.0, 100.0, 10.0, help="Belohnung für das Erreichen des Ziels.")
+env_step_penalty = st.sidebar.slider("Schritt-Strafe (Kosten)", -2.0, 0.0, -0.1, 0.1, help="Negative Reward pro Schritt (‘living cost’). Stärker negativ → kürzere Wege werden schneller gelernt, aber Exploration wird teurer.")
+env_wall_penalty = st.sidebar.slider("Wand-Strafe (Kollision)", -10.0, -1.0, -5.0, 1.0, help="Negative Reward bei Kollision/Wall. Höher → Agent meidet Wände stärker (sicherer), kann aber Umwege lernen und anfangs mehr Varianz zeigen.")
+env_goal_reward = st.sidebar.slider("Ziel-Belohnung", 10.0, 200.0, 100.0, 10.0, help="Positive Reward beim Erreichen des Ziels. Höher → stärkere Verstärkung seltener Goal-Treffer, oft schnellerer Anstieg der Lernkurve, ggf. mehr Spikes.")
 # Update active environment
 st.session_state.env.step_penalty = env_step_penalty
 st.session_state.env.wall_penalty = env_wall_penalty
@@ -900,7 +900,7 @@ with zone_agent:
     # 2. Return Display (Level 4 - Primary Performance Value)
     st.markdown(f"""
     <div style="display: flex; align-items: baseline; margin-bottom: 12px;">
-        <span style="color: #E6EDF3; font-size: 26px; font-weight: 600; margin-right: 12px;">Return (Gₜ):</span>
+        <span title="Kumulierte Summe der Rewards in einer Episode: Gₜ = Σ r. Höher = bessere Performance (z. B. schneller + weniger Kollisionen)." style="color: #E6EDF3; font-size: 26px; font-weight: 600; margin-right: 12px; cursor: help; border-bottom: 1px dotted #8B949E;">Return (Gₜ):</span>
         <span style="color: #9BE28A; font-size: 26px; font-weight: 600;">{ret_str}</span>
     </div>
     """, unsafe_allow_html=True)
