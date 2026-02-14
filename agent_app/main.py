@@ -343,6 +343,12 @@ with st.sidebar.expander("👁️ Current Percept", expanded=True):
     with col2:
         st.write(f"⬇️ `{percepts['DOWN']}`")
         st.write(f"➡️ `{percepts['RIGHT']}`")
+    
+    # Didactic Explanation
+    if percept_enabled:
+        st.caption("Perception = lokale Observation (begrenztes Sichtfeld).")
+    else:
+        st.caption("Perception = vollständige Observation des Environment.")
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("Umgebungs-Konfiguration")
@@ -548,6 +554,8 @@ c1.metric("Schritte", curr_ep['steps'])
 c2.metric("Current State", str(st.session_state.env.agent_pos))
 c3.metric("Immediate Reward (rₜ)", f"{curr_ep.get('last_reward', 0.0):.2f}")
 c4.metric("Return (cumulative reward)", f"{curr_ep['return']:.2f}")
+
+st.caption("State = interne Repräsentation des Agenten (hier: Position im Environment).")
 
 # Agent Declaration
 if agent_type == "Manuell":
