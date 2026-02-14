@@ -135,9 +135,19 @@ class Environment:
     def reset(self):
         # 0: Empty, 1: Wall, 2: Goal
         self.grid = np.zeros((self.height, self.width), dtype=int)
-        self.start_pos = (1, 1)
+        
+        # Random Start & Goal with min distance
+        while True:
+            self.start_pos = (random.randint(0, self.height-1), random.randint(0, self.width-1))
+            self.goal_pos = (random.randint(0, self.height-1), random.randint(0, self.width-1))
+            
+            # Manhattan Distance check
+            dist = abs(self.start_pos[0] - self.goal_pos[0]) + abs(self.start_pos[1] - self.goal_pos[1])
+            min_dist = (self.width + self.height) // 3
+            if self.start_pos != self.goal_pos and dist >= min_dist:
+                break
+
         self.agent_pos = self.start_pos
-        self.goal_pos = (self.height - 2, self.width - 2)
         
         # Walls (Random simple maze)
         blocks = int(self.width * self.height * 0.2)
@@ -153,14 +163,14 @@ class Environment:
         self.game_over = False
         
         # Model-Based Memory (Internal Map: 0=Unknown, 1=Wall, 2=Empty/Goal)
-        self.memory_map = {} 
+        self.model_memory = {} 
 
     def reset_agent(self):
         # Reset only agent state, keep environment (walls)
         self.agent_pos = self.start_pos
         self.visited = {self.start_pos}
         self.game_over = False
-        self.memory_map = {} 
+        self.model_memory = {} 
 
     def step(self, action):
         if self.game_over: return self.agent_pos, 0, True
@@ -174,8 +184,7 @@ class Environment:
             cell = self.grid[nr, nc]
             if cell == 1: # Wall
                 # Update memory if bumped
-                # Update memory if bumped
-                self.memory_map[(nr, nc)] = 1 
+                self.model_memory[(nr, nc)] = 1 
                 return self.agent_pos, self.wall_penalty, False
             else:
                 self.agent_pos = (nr, nc)
@@ -190,80 +199,150 @@ class Environment:
         
         return self.agent_pos, -1, False # Out of bounds
 
+    def get_observation(self, percept_enabled=True):
+        """
+        Zentrale Schnittstelle für Agenten-Wahrnehmung.
+        Gibt ein Dict zurück, das ALLES enthält, was der Agent wissen darf.
+        Kein direkter Zugriff auf env.grid erlaubt!
+        """
+        obs = {
+            "agent_pos": self.agent_pos,
+            "goal_pos": self.goal_pos, # Goal location is KNOWN (as per recommendation)
+            "is_game_over": self.game_over,
+            "percept_enabled": percept_enabled
+        }
+
+        if percept_enabled:
+            # FOG MODE: Local View Only (Radius 1)
+            # Returns dict of neighbors: {(r,c): val}
+            local_view = {}
+            r, c = self.agent_pos
+            radius = 1
+            for i in range(-radius, radius+1):
+                for j in range(-radius, radius+1):
+                    if abs(i) + abs(j) <= radius: # Manhattan < 1
+                        nr, nc = r+i, c+j
+                        if 0 <= nr < self.height and 0 <= nc < self.width:
+                            local_view[(nr, nc)] = self.grid[nr, nc]
+                        else:
+                            local_view[(nr, nc)] = -1 # Boundary
+            obs["view"] = local_view
+            obs["mode"] = "fog"
+        else:
+            # FULL MODE: Full Grid Access
+            obs["grid"] = self.grid.copy()
+            obs["mode"] = "full"
+            
+        return obs
+
     def get_percept_view(self, radius=1):
+        # Visualization Helper (UI only)
         view = set()
         r, c = self.agent_pos
         for i in range(-radius, radius+1):
             for j in range(-radius, radius+1):
-                if abs(i) + abs(j) <= radius: # Strict Manhattan distance
+                if abs(i) + abs(j) <= radius:
                     view.add((r+i, c+j))
         return view
-        
-    def get_current_percept_text(self):
-        # Didactic: Textual description of immediate neighbors
-        r, c = self.agent_pos
-        percepts = {}
-        # Order: Up, Down, Left, Right
-        directions = {(-1,0): "UP", (1,0): "DOWN", (0,-1): "LEFT", (0,1): "RIGHT"}
-        
-        for (dr, dc), label in directions.items():
-            nr, nc = r+dr, c+dc
-            if 0 <= nr < self.height and 0 <= nc < self.width:
-                val = self.grid[nr, nc]
-                if val == 1: percepts[label] = "WALL"
-                elif val == 2: percepts[label] = "GOAL"
-                else: percepts[label] = "EMPTY"
-            else:
-                percepts[label] = "BOUNDARY"
-        return percepts
 
 class QAgent:
     def __init__(self, env, alpha, gamma, epsilon):
-        self.q = np.zeros((env.height, env.width, 4))
+        self.height = env.height
+        self.width = env.width
+        # Split Q-Tables
+        self.q_full = np.zeros((env.height, env.width, 4))
+        self.q_fog = {} # Dictionary for encoded states
+        
         self.alpha = alpha
         self.gamma = gamma
         self.epsilon = epsilon
-        self.prev_s = None
-        self.prev_a = None
+        
+        self.prev_state_key = None
+        self.prev_action = None
         self.last_td_error = 0.0
         
-    def act(self, s):
+    def encode_state(self, obs):
+        mode = obs['mode']
+        agent_pos = obs['agent_pos']
+        
+        if mode == 'full':
+            return ('full', agent_pos)
+            
+        elif mode == 'fog':
+            # Local View Encoding (Radius 1) + Relative Goal Direction
+            view = obs['view']
+            r, c = agent_pos
+            
+            # 1. Encode Neighbors: Order Up, Down, Left, Right
+            # Values: 0=Empty, 1=Wall, 2=Goal, -1=Boundary
+            neighbors = []
+            for dr, dc in [(-1,0), (1,0), (0,-1), (0,1)]:
+                nr, nc = r+dr, c+dc
+                val = view.get((nr, nc), -1) 
+                neighbors.append(val)
+            
+            # 2. Encode Goal Direction (Sign of difference)
+            gr, gc = obs['goal_pos']
+            dy, dx = gr - r, gc - c
+            
+            g_y = 0 if dy == 0 else (1 if dy > 0 else -1)
+            g_x = 0 if dx == 0 else (1 if dx > 0 else -1)
+            
+            return ('fog', tuple(neighbors), (g_y, g_x))
+
+    def get_q(self, state_key):
+        mode = state_key[0]
+        if mode == 'full':
+            _, (r, c) = state_key
+            return self.q_full[r, c]
+        else:
+            if state_key not in self.q_fog:
+                self.q_fog[state_key] = np.zeros(4)
+            return self.q_fog[state_key]
+
+    def set_q(self, state_key, action, value):
+        mode = state_key[0]
+        if mode == 'full':
+            _, (r, c) = state_key
+            self.q_full[r, c, action] = value
+        else:
+            if state_key not in self.q_fog:
+                self.q_fog[state_key] = np.zeros(4)
+            self.q_fog[state_key][action] = value
+
+    def act(self, obs):
+        state_key = self.encode_state(obs)
+        vals = self.get_q(state_key)
+        
         if random.random() < self.epsilon:
-            # st.session_state.logs.append(f"🎲 **Zufalls-Zug** (Exploration) bei {s}")
             return random.randint(0, 3)
         
-        vals = self.q[s[0], s[1]]
+        # Random choice if multiple max to avoid bias
         max_v = np.max(vals)
-        action = np.argmax(vals)
-        # st.session_state.logs.append(f"🧠 **Gieriger Zug** (Exploitation) bei {s} (Q={max_v:.2f})")
-        return action
+        actions = np.where(vals == max_v)[0]
+        return random.choice(actions)
 
-    def learn(self, s, r, s_next):
-        if self.prev_s is None: return
+    def learn(self, obs_curr, reward, obs_next):
+        if self.prev_state_key is None: return
         
-        old_q = self.q[self.prev_s[0], self.prev_s[1], self.prev_a]
-        next_max = np.max(self.q[s_next[0], s_next[1]])
+        old_q = self.get_q(self.prev_state_key)[self.prev_action]
         
-        # Calculate TD-Error (delta)
-        target = r + self.gamma * next_max
+        if obs_next['is_game_over']:
+            next_max = 0.0
+        else:
+            next_state_key = self.encode_state(obs_next)
+            next_max = np.max(self.get_q(next_state_key))
+        
+        target = reward + self.gamma * next_max
         delta = target - old_q
         self.last_td_error = delta
 
-        # Update Q-Value
         new_q = old_q + self.alpha * delta
-        self.q[self.prev_s[0], self.prev_s[1], self.prev_a] = new_q
+        self.set_q(self.prev_state_key, self.prev_action, new_q)
         
-        # Didactic Log (Only log occasionally or detailed mode?)
-        # actions = ["OBEN", "UNTEN", "LINKS", "RECHTS"]
-        # act_str = actions[self.prev_a]
-        # log_msg = (f"🎯 **Q-Update** @ {self.prev_s} Aktion {act_str}:<br>"
-        #            f"`Q_neu = {old_q:.2f} + {self.alpha} * ({r:.2f} + {self.gamma} * {next_max:.2f} - {old_q:.2f})` "
-        #            f"➡️ **{new_q:.3f}**")
-        # st.session_state.logs.append(log_msg)
-        
-    def post_step(self, s, a):
-        self.prev_s = s
-        self.prev_a = a
+    def post_step(self, obs, action):
+        self.prev_state_key = self.encode_state(obs)
+        self.prev_action = action
 
 # --- 3. STATE INITIALIZATION ---
 if 'env' not in st.session_state:
@@ -429,14 +508,50 @@ with st.sidebar.expander("📊 Leistungs-Statistik", expanded=False):
 
 # --- 5. HELPER FUNCTIONS ---
 
+# --- 5. HELPER FUNCTIONS ---
+
+def get_model_based_action(start_pos, goal_pos, grid_memory, height, width):
+    """
+    Simpler BFS-Planer auf dem bekannten Grid (Memory).
+    Unbekannte Felder werden als FREI (0) angenommen (Optimistic).
+    """
+    queue = [(start_pos, [])] # (current_pos, path_of_actions)
+    visited = {start_pos}
+    
+    # Directions: 0=Up, 1=Down, 2=Left, 3=Right
+    moves = [(-1,0,0), (1,0,1), (0,-1,2), (0,1,3)]
+    
+    while queue:
+        (r, c), path = queue.pop(0)
+        
+        if (r, c) == goal_pos:
+            return path[0] if path else random.randint(0, 3)
+            
+        for dr, dc, act in moves:
+            nr, nc = r+dr, c+dc
+            if 0 <= nr < height and 0 <= nc < width:
+                # Check Memory: 1=Wall. 0 or not in memory = Free (Optimistic)
+                is_wall = grid_memory.get((nr, nc), 0) == 1
+                
+                if not is_wall and (nr, nc) not in visited:
+                    visited.add((nr, nc))
+                    queue.append(((nr, nc), path + [act]))
+    
+    # No path found? Random walk.
+    return random.randint(0, 3)
+
 def render_grid_html(env, agent_type, percept_enabled, q_agent=None):
     # Radius 1 for Percept
     visible_mask = env.get_percept_view(radius=1) if percept_enabled else {(r,c) for r in range(env.height) for c in range(env.width)}
     
-    # Calculate Max Q for normalization if needed
+    # Helper to get Q-Values for visualization
+    # Only show in Full Mode or if we want to debug. 
+    # Logic: If Full Mode, show q_full. If Fog, don't show Q-Values on grid (too complex state).
+    show_q = (q_agent is not None) and (not percept_enabled)
+    
     max_q_val = 1.0
-    if q_agent:
-        max_q_val = np.max(q_agent.q) if np.max(q_agent.q) > 0 else 1.0
+    if show_q:
+        max_q_val = np.max(q_agent.q_full) if np.max(q_agent.q_full) > 0 else 1.0
 
     grid_str = ""
     for r in range(env.height):
@@ -450,8 +565,8 @@ def render_grid_html(env, agent_type, percept_enabled, q_agent=None):
             symbol = "░" # Unobserved
             
             q_color = None
-            if q_agent:
-                q_vals = q_agent.q[r, c]
+            if show_q:
+                q_vals = q_agent.q_full[r, c]
                 best_q = np.max(q_vals)
                 if best_q != 0:
                     intensity = int(min(255, max(50, (abs(best_q) / max_q_val) * 200))) 
@@ -464,7 +579,7 @@ def render_grid_html(env, agent_type, percept_enabled, q_agent=None):
             if is_visible:
                 # Update Model Memory if Model-based
                 if agent_type == "Modell-basiert": 
-                    env.memory_map[pos] = env.grid[r, c]
+                    env.model_memory[pos] = env.grid[r, c]
 
                 if pos == env.agent_pos: symbol = "🤖"
                 elif pos == env.goal_pos: symbol = "🏁"
@@ -480,20 +595,13 @@ def render_grid_html(env, agent_type, percept_enabled, q_agent=None):
                 style = "color: #777;" # Brighter Shadow
                 
                 # Check Memory for Model-Based
-                if agent_type == "Modell-basiert" and pos in env.memory_map:
-                    val = env.memory_map[pos]
+                if agent_type == "Modell-basiert" and pos in env.model_memory:
+                    val = env.model_memory[pos]
                     if val == 1: symbol = "▒" # Ghost Wall
                     elif val == 2: symbol = "⚐" # Ghost Goal
                     else: symbol = "&nbsp;" # Empty Known
                     style = "color: #aaa;" # Dimmed for memory
-                
-                # Q-Learning: Show known Q-values even in shadow?
-                # User constraint: "Felder außerhalb ... visuell als 'Unobserved' (░) markiert werden."
-                # But seeing the Q-Table grow is nice.
-                # Let's faintly show Q-color behind the fog symbol if known
-                elif q_agent and np.max(q_agent.q[r, c]) != 0:
-                     if q_color: style = f"background-color: {q_color}; color: #555;"
-
+                    
             # Construct Cell HTML
             if style:
                 row_str += f'<span style="{style}">{symbol}</span> '
@@ -591,36 +699,93 @@ if agent_type != "Manuell":
         for _ in range(steps_to_run):
             if env.game_over: break
             
-            # 1. REFLEX
+            # --- GET OBSERVATION ---
+            obs = env.get_observation(percept_enabled)
+            
+            # 1. REFLEX AGENT LOGIC
             if agent_type == "Reflex-Agent":
-                view = env.get_percept_view(1) # Uses Percept
                 possibles = []
-                for i, (dr, dc) in enumerate([(-1,0), (1,0), (0,-1), (0,1)]):
-                    nr, nc = env.agent_pos[0]+dr, env.agent_pos[1]+dc
-                    
-                    if 0 <= nr < env.height and 0 <= nc < env.width:
-                        if (nr, nc) in view:
-                            if env.grid[nr, nc] == 2: possibles.append((i, 100))
-                            elif env.grid[nr, nc] == 1: possibles.append((i, -100))
-                            else: possibles.append((i, 0))
-                        else:
-                            possibles.append((i, -10)) # Unknown
-                    else:
-                        possibles.append((i, -100)) # Out of bounds
+                # 4 Directions: Up, Down, Left, Right
+                direction_vecs = [(-1,0), (1,0), (0,-1), (0,1)]
                 
+                if obs['mode'] == 'full':
+                    # FULL: Global evaluation (Manhattan to Goal) + Wall Check
+                    grid = obs['grid']
+                    r, c = obs['agent_pos']
+                    gr, gc = obs['goal_pos']
+                    
+                    for i, (dr, dc) in enumerate(direction_vecs):
+                        nr, nc = r+dr, c+dc
+                        
+                        if 0 <= nr < env.height and 0 <= nc < env.width:
+                            cell = grid[nr, nc]
+                            if cell == 1: # Wall
+                                possibles.append((i, -9999)) # Blocked
+                            else:
+                                # Score = -Distance (closer is higher score)
+                                dist = abs(nr - gr) + abs(nc - gc)
+                                possibles.append((i, -dist))
+                        else:
+                            possibles.append((i, -9999)) # Outside
+                            
+                else: 
+                    # FOG: Local View Evaluation
+                    view = obs['view']
+                    r, c = obs['agent_pos']
+                    gr, gc = obs['goal_pos'] # Known Goal
+                    
+                    for i, (dr, dc) in enumerate(direction_vecs):
+                        nr, nc = r+dr, c+dc
+                        
+                        # Can only evaluate if in View or Goal direction heuristic
+                        # Logic: If neighbor is known WALL -> Penalty. 
+                        # If neighbor is known GOAL -> High Reward.
+                        # If neighbor is EMPTY/UNKNOWN -> Score based on Goal Dist (Heuristic)
+                        # Problem: If stuck in local minimum, this will oscillate.
+                        
+                        if 0 <= nr < env.height and 0 <= nc < env.width:
+                            val = view.get((nr, nc), -2) # -2 = Unknown
+                            
+                            if val == 1: # Wall
+                                possibles.append((i, -999))
+                            else:
+                                # Empty (0), Goal (2), or Unknown (-2)
+                                score = 0
+                                if val == 2: score += 100
+                                
+                                # Heuristic: Closer to goal?
+                                dist = abs(nr - gr) + abs(nc - gc)
+                                score -= dist 
+                                
+                                # Disincentivize Unknown slightly less than Wall? 
+                                # Or treat Unknown as potentially empty.
+                                possibles.append((i, score))
+                        else:
+                            possibles.append((i, -999)) # Bounds
+                
+                # Select best move
                 max_score = max(possibles, key=lambda x: x[1])[1]
                 best_moves = [move for move, score in possibles if score == max_score]
                 action = random.choice(best_moves)
             
-            # 2. MODEL-BASED
+            # 2. MODEL-BASED LOGIC
             elif agent_type == "Modell-basiert":
-                c_view = env.get_percept_view(1)
-                for pos in c_view:
-                    if 0 <= pos[0] < env.height and 0 <= pos[1] < env.width:
-                         env.memory_map[pos] = env.grid[pos]
-                action = random.randint(0, 3)
+                # Update Memory from Obs
+                if obs['mode'] == 'full':
+                    # Full Mode: All Grid is known
+                    current_memory = {(r,c): obs['grid'][r,c] for r in range(env.height) for c in range(env.width)}
+                else:
+                    # Fog Mode: Update internal memory from view
+                    view = obs['view']
+                    for pos, val in view.items():
+                        if val != -1: # Ignore boundary
+                           env.model_memory[pos] = val
+                    current_memory = env.model_memory
+                
+                # Plan Step
+                action = get_model_based_action(obs['agent_pos'], obs['goal_pos'], current_memory, env.height, env.width)
 
-            # 3. Q-LEARNING
+            # 3. Q-LEARNING LOGIC
             elif agent_type == "Q-Learning":
                 if st.session_state.q_agent is None:
                     st.session_state.q_agent = QAgent(env, alpha, gamma, epsilon)
@@ -628,20 +793,23 @@ if agent_type != "Manuell":
                 qa = st.session_state.q_agent
                 qa.alpha, qa.gamma, qa.epsilon = alpha, gamma, epsilon
                 
-                s = env.agent_pos
-                action = qa.act(s)
-                qa.post_step(s, action)
+                action = qa.act(obs)
+                qa.post_step(obs, action)
 
             # EXECUTE ACTION
             if action is not None and not env.game_over:
                 next_s, r, done = env.step(action)
                 
+                # Get New Observation for Learning
+                next_obs = env.get_observation(percept_enabled)
+                
                 st.session_state.current_episode['steps'] += 1
                 st.session_state.current_episode['return'] += r
                 st.session_state.current_episode['last_reward'] = r
                 st.session_state.current_episode['last_action'] = ["UP", "DOWN", "LEFT", "RIGHT"][action]                
+                
                 if agent_type == "Q-Learning" and st.session_state.q_agent:
-                    st.session_state.q_agent.learn(None, r, next_s)
+                    st.session_state.q_agent.learn(obs, r, next_obs)
                 
                 if steps_to_run > 1:
                      grid_html = render_grid_html(env, agent_type, percept_enabled, st.session_state.q_agent if agent_type == "Q-Learning" else None)
