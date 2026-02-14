@@ -247,7 +247,7 @@ if 'env' not in st.session_state:
         "Q-Learning": {'wins': 0, 'episodes': 0, 'total_steps': 0, 'total_return': 0.0}
     }
     # Current Episode Tracker
-    st.session_state.current_episode = {'steps': 0, 'return': 0.0}
+    st.session_state.current_episode = {'steps': 0, 'return': 0.0, 'last_reward': 0.0}
     # Training History for Q-Learning
     st.session_state.training_history = []
 
@@ -360,14 +360,14 @@ if st.sidebar.button("Reset Episode (Startpos)"):
     env.agent_pos = env.start_pos
     env.game_over = False
     env.visited = {env.start_pos}
-    st.session_state.current_episode = {'steps': 0, 'return': 0.0}
+    st.session_state.current_episode = {'steps': 0, 'return': 0.0, 'last_reward': 0.0}
     st.rerun()
 
 if st.sidebar.button("Brain Reset (Q-Table löschen)"):
     # Clear Q-Table, Keep Walls (Allow retraining on same map)
     st.session_state.q_agent = None
     st.session_state.training_history = []
-    st.session_state.current_episode = {'steps': 0, 'return': 0.0}
+    st.session_state.current_episode = {'steps': 0, 'return': 0.0, 'last_reward': 0.0}
     st.session_state.logs.append("🧠 **Brain Reset:** Alles vergessen!")
     st.rerun()
 
@@ -376,7 +376,7 @@ if st.sidebar.button("Neues Labyrinth (Full Reset)"):
     st.session_state.env = Environment(grid_n, grid_n, step_penalty=env_step_penalty, goal_reward=env_goal_reward, wall_penalty=env_wall_penalty)
     st.session_state.q_agent = None
     st.session_state.logs = []
-    st.session_state.current_episode = {'steps': 0, 'return': 0.0}
+    st.session_state.current_episode = {'steps': 0, 'return': 0.0, 'last_reward': 0.0}
     st.session_state.training_history = []
     st.rerun()
 
@@ -534,11 +534,24 @@ components.html(js_code, height=0, width=0)
 
 st.write("Steuerung: Nutze **Pfeiltasten** oder Buttons.")
 
+# Environment & Observability Labeling
+st.caption("Environment: Grid World")
+if percept_enabled:
+    st.caption("Environment: Partially Observable")
+else:
+    st.caption("Environment: Fully Observable")
+
 # Live Metrics
 curr_ep = st.session_state.current_episode
-col_m1, col_m2 = st.columns(2)
-col_m1.metric("Schritte (Aktuell)", curr_ep['steps'])
-col_m2.metric("Return (Aktuell)", f"{curr_ep['return']:.2f}")
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("Schritte", curr_ep['steps'])
+c2.metric("Current State", str(st.session_state.env.agent_pos))
+c3.metric("Immediate Reward (rₜ)", f"{curr_ep.get('last_reward', 0.0):.2f}")
+c4.metric("Return (cumulative reward)", f"{curr_ep['return']:.2f}")
+
+# Agent Declaration
+if agent_type == "Manuell":
+    st.info("**Agent Type:** Human-Controlled Agent  \n**Policy:** Determined by User Input")
 
 action = None # Initialize action
 
@@ -618,7 +631,7 @@ if agent_type != "Manuell":
                 
                 st.session_state.current_episode['steps'] += 1
                 st.session_state.current_episode['return'] += r
-                
+                st.session_state.current_episode['last_reward'] = r                
                 if agent_type == "Q-Learning" and st.session_state.q_agent:
                     st.session_state.q_agent.learn(None, r, next_s)
                 
@@ -648,7 +661,7 @@ if agent_type == "Manuell" and action is not None and not env.game_over:
     
     st.session_state.current_episode['steps'] += 1
     st.session_state.current_episode['return'] += r
-    
+    st.session_state.current_episode['last_reward'] = r    
     if done:
         st.balloons()
         st.session_state.logs.append("ZIEL ERREICHT!")
