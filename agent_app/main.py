@@ -245,6 +245,24 @@ class Environment:
                     view.add((r+i, c+j))
         return view
 
+    def get_current_percept_text(self):
+        # Didactic: Textual description of immediate neighbors
+        r, c = self.agent_pos
+        percepts = {}
+        # Order: Up, Down, Left, Right
+        directions = {(-1,0): "UP", (1,0): "DOWN", (0,-1): "LEFT", (0,1): "RIGHT"}
+        
+        for (dr, dc), label in directions.items():
+            nr, nc = r+dr, c+dc
+            if 0 <= nr < self.height and 0 <= nc < self.width:
+                val = self.grid[nr, nc]
+                if val == 1: percepts[label] = "WALL"
+                elif val == 2: percepts[label] = "GOAL"
+                else: percepts[label] = "EMPTY"
+            else:
+                percepts[label] = "BOUNDARY"
+        return percepts
+
 class QAgent:
     def __init__(self, env, alpha, gamma, epsilon):
         self.height = env.height
