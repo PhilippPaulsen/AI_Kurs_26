@@ -379,25 +379,7 @@ auto_run = st.sidebar.checkbox("Auto-Lauf (Simulation)", value=False)
 speed = st.sidebar.slider("Geschwindigkeit (Wartezeit in s)", 0.0, 1.0, 0.2)
 percept_enabled = st.sidebar.checkbox("Percept Field (Sichtfeld)", value=True, help="Wenn aktiv, sieht der Agent nur benachbarte Felder (Radius 1).")
 
-# NEW: Current Percept Expander
-with st.sidebar.expander("Perception (Current Observation)", expanded=True):
-    percepts = st.session_state.env.get_current_percept_text()
-    
-    # Clean CSS Grid Layout for styling
-    p_up, p_down = percepts['UP'], percepts['DOWN']
-    p_left, p_right = percepts['LEFT'], percepts['RIGHT']
-    
-    st.markdown(f"""
-    <div style="display: grid; grid-template-columns: 40px 1fr; gap: 2px; align-items: center; font-family: monospace; font-size: 0.9em;">
-        <div style="text-align: right;">⬆️</div><div style="color: #eee;">{p_up}</div>
-        <div style="text-align: right;">⬅️</div><div style="color: #eee;">{p_left}</div>
-        <div style="text-align: right;">➡️</div><div style="color: #eee;">{p_right}</div>
-        <div style="text-align: right;">⬇️</div><div style="color: #eee;">{p_down}</div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Compact Footnote
-    st.caption("Radius 1. 'EMPTY' = leer.")
+
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("Umgebungs-Konfiguration")
@@ -915,6 +897,28 @@ with zone_agent:
             st.caption("Klicke zum Bestätigen.")
 
 
+
+
+# NEW POSITION: Current Percept Expander (After Logic Update)
+# Targeted to sidebar to ensure it shows FRESH state
+with st.sidebar.expander("Perception (Current Observation)", expanded=True):
+    percepts = st.session_state.env.get_current_percept_text()
+    
+    # Clean CSS Grid Layout for styling
+    p_up, p_down = percepts['UP'], percepts['DOWN']
+    p_left, p_right = percepts['LEFT'], percepts['RIGHT']
+    
+    st.markdown(f"""
+    <div style="display: grid; grid-template-columns: 40px 1fr; gap: 2px; align-items: center; font-family: monospace; font-size: 0.9em;">
+        <div style="text-align: right;">⬆️</div><div style="color: #eee;">{p_up}</div>
+        <div style="text-align: right;">⬅️</div><div style="color: #eee;">{p_left}</div>
+        <div style="text-align: right;">➡️</div><div style="color: #eee;">{p_right}</div>
+        <div style="text-align: right;">⬇️</div><div style="color: #eee;">{p_down}</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Compact Footnote
+    st.caption("Radius 1. 'EMPTY' = leer.")
 
 
 # --- 6. RENDERER (ASCII/EMOJI) ---
