@@ -1382,8 +1382,31 @@ if agent_type == "Q-Learning" and st.session_state.q_agent:
                 state_key = qa.encode_state(syn_obs)
                 q_vals = qa.get_q(state_key)
                 q_grid[r, c] = np.max(q_vals)
-                
-        st.dataframe(pd.DataFrame(q_grid).style.background_gradient(cmap="RdYlGn", axis=None, vmin=-1.0, vmax=1.0))
+        
+        # Custom Styling for better differentiation
+        g_max = np.max(q_grid)
+        g_min = np.min(q_grid)
+        
+        def q_color_styler(val):
+            if np.isclose(val, 0.0): return 'color: #ccc; background-color: white'
+            
+            # Text Color
+            txt = "black"
+            
+            if val < 0:
+                # Red Scale (Non-linear)
+                ref = max(abs(g_min), 5.0) # At least -5
+                ratio = min(1.0, abs(val) / ref)
+                alpha = 0.1 + (ratio ** 0.5) * 0.9
+                return f'color: {txt}; background-color: rgba(255, 0, 0, {alpha:.2f})'
+            else:
+                # Green Scale
+                ref = max(g_max, 1.0)
+                ratio = min(1.0, val / ref)
+                alpha = 0.1 + (ratio ** 0.5) * 0.9
+                return f'color: {txt}; background-color: rgba(0, 255, 0, {alpha:.2f})'
+
+        st.dataframe(pd.DataFrame(q_grid).style.applymap(q_color_styler))
         st.caption("ℹ️ Projektion: Zeigt, wie gut der Agent die lokale Situation an jeder Position bewertet. (Rot=Negativ, Grün=Positiv)")
         
         # Didactic Explanation for State Aliasing
@@ -1413,7 +1436,26 @@ if agent_type == "Q-Learning" and st.session_state.q_agent:
     else:
         # Full Obs -> q_full matrix exists
         q_grid = np.max(st.session_state.q_agent.q_full, axis=2)
-        st.dataframe(pd.DataFrame(q_grid).style.background_gradient(cmap="RdYlGn", axis=None, vmin=-1.0, vmax=1.0))
+        
+        # Custom Styling for better differentiation (Copy of logic)
+        g_max = np.max(q_grid)
+        g_min = np.min(q_grid)
+        
+        def q_color_styler(val):
+            if np.isclose(val, 0.0): return 'color: #ccc; background-color: white'
+            txt = "black"
+            if val < 0:
+                ref = max(abs(g_min), 5.0)
+                ratio = min(1.0, abs(val) / ref)
+                alpha = 0.1 + (ratio ** 0.5) * 0.9
+                return f'color: {txt}; background-color: rgba(255, 0, 0, {alpha:.2f})'
+            else:
+                ref = max(g_max, 1.0)
+                ratio = min(1.0, val / ref)
+                alpha = 0.1 + (ratio ** 0.5) * 0.9
+                return f'color: {txt}; background-color: rgba(0, 255, 0, {alpha:.2f})'
+                
+        st.dataframe(pd.DataFrame(q_grid).style.applymap(q_color_styler))
 
 # --- 7. LOGS ---
 st.markdown("---")
