@@ -230,6 +230,31 @@ def test_render_grid_html():
     except Exception as e:
         print(f"FAIL: render_grid_html failed in Full Mode: {e}")
 
+def test_strict_fog_behavior():
+    print("\n--- Test Strict Fog Behavior ---")
+    env = Environment(10, 10)
+    
+    # 1. Test Get Observation
+    obs_normal = env.get_observation(percept_enabled=True, strict_fog=False)
+    assert obs_normal['goal_pos'] is not None
+    
+    obs_strict = env.get_observation(percept_enabled=True, strict_fog=True)
+    assert obs_strict['goal_pos'] is None
+    print("PASS: Strict Fog hides goal_pos.")
+    
+    # 2. Test Q-Agent Encoding
+    qa = QAgent(env, 0.5, 0.9, 0.1)
+    
+    state_normal = qa.encode_state(obs_normal)
+    # ('fog', neighbors, (gy, gx)) -> Length 3
+    assert len(state_normal) == 3 
+    
+    state_strict = qa.encode_state(obs_strict)
+    # ('fog_strict', neighbors) -> Length 2
+    assert len(state_strict) == 2
+    assert state_strict[0] == 'fog_strict'
+    print("PASS: Q-Agent encodes Strict Fog correctly (no goal dir).")
+
 if __name__ == "__main__":
     test_environment_randomization()
     test_get_observation()
@@ -239,3 +264,4 @@ if __name__ == "__main__":
     test_heatmap_attributes()
     test_fog_heatmap_projection()
     test_render_grid_html()
+    test_strict_fog_behavior()

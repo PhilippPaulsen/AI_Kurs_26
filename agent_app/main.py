@@ -199,7 +199,7 @@ class Environment:
         
         return self.agent_pos, -1, False # Out of bounds
 
-    def get_observation(self, percept_enabled=True):
+    def get_observation(self, percept_enabled=True, strict_fog=False):
         """
         Zentrale Schnittstelle für Agenten-Wahrnehmung.
         Gibt ein Dict zurück, das ALLES enthält, was der Agent wissen darf.
@@ -207,7 +207,7 @@ class Environment:
         """
         obs = {
             "agent_pos": self.agent_pos,
-            "goal_pos": self.goal_pos, # Goal location is KNOWN (as per recommendation)
+            "goal_pos": self.goal_pos if not (percept_enabled and strict_fog) else None, # Hide Goal in Strict Fog
             "is_game_over": self.game_over,
             "percept_enabled": percept_enabled
         }
@@ -300,13 +300,19 @@ class QAgent:
                 neighbors.append(val)
             
             # 2. Encode Goal Direction (Sign of difference)
-            gr, gc = obs['goal_pos']
-            dy, dx = gr - r, gc - c
-            
-            g_y = 0 if dy == 0 else (1 if dy > 0 else -1)
-            g_x = 0 if dx == 0 else (1 if dx > 0 else -1)
-            
-            return ('fog', tuple(neighbors), (g_y, g_x))
+            # ONLY if goal is known (not None)
+            if obs['goal_pos'] is not None:
+                gr, gc = obs['goal_pos']
+                dy, dx = gr - r, gc - c
+                
+                g_y = 0 if dy == 0 else (1 if dy > 0 else -1)
+                g_x = 0 if dx == 0 else (1 if dx > 0 else -1)
+                
+                return ('fog', tuple(neighbors), (g_y, g_x))
+            else:
+                # STRICT FOG: No Goal Info -> State is just Neighbors
+                # This causes state aliasing (POMDP behavior)
+                return ('fog_strict', tuple(neighbors))
 
     def get_q(self, state_key):
         mode = state_key[0]
@@ -406,6 +412,7 @@ if grid_n != st.session_state.env.width:
 # Percept Value (Read from Session State for Availability, Rendered Later)
 # Default to True if not yet in state
 percept_enabled = st.session_state.get('percept_field_on', True) 
+strict_fog = st.session_state.get('strict_fog_on', False) if percept_enabled else False 
 
 # Agent Select
 agent_type = st.sidebar.selectbox("Agenten Intelligenz", ["Manuell", "Reflex-Agent", "Modell-basiert", "Q-Learning"])
@@ -461,13 +468,13 @@ if agent_type == "Q-Learning":
             
             # Run Episode
             while not env.game_over and steps < 200: # Limit steps
-                obs = env.get_observation(percept_enabled)
+                obs = env.get_observation(percept_enabled, strict_fog)
                 a = qa.act(obs)
                 qa.post_step(obs, a)
                 
                 _, r, done = env.step(a)
                 
-                next_obs = env.get_observation(percept_enabled)
+                next_obs = env.get_observation(percept_enabled, strict_fog)
                 qa.learn(obs, r, next_obs)
                 
                 steps += 1
@@ -491,6 +498,8 @@ st.sidebar.subheader("Simulations-Steuerung")
 auto_run = st.sidebar.checkbox("Auto-Lauf (Simulation)", value=False)
 speed = st.sidebar.slider("Geschwindigkeit (Wartezeit in s)", 0.0, 1.0, 0.2)
 st.sidebar.checkbox("Percept Field (Sichtfeld)", value=True, key='percept_field_on', help="Wenn aktiv, sieht der Agent nur benachbarte Felder (Radius 1).")
+if percept_enabled:
+    st.sidebar.checkbox("Strict Fog (Blind / POMDP)", value=False, key='strict_fog_on', help="Entfernt den Kompass (Zielrichtung). Agent sieht nur lokale Hindernisse und muss 'blind' suchen. (POMDP Verhalten)")
 
 
 
@@ -759,7 +768,7 @@ if agent_type != "Manuell":
             if env.game_over: break
             
             # --- GET OBSERVATION ---
-            obs = env.get_observation(percept_enabled)
+            obs = env.get_observation(percept_enabled, strict_fog)
             
             # 1. REFLEX AGENT LOGIC
             if agent_type == "Reflex-Agent":
@@ -791,38 +800,36 @@ if agent_type != "Manuell":
                     # FOG: Local View Evaluation
                     view = obs['view']
                     r, c = obs['agent_pos']
-                    gr, gc = obs['goal_pos'] # Known Goal
                     
                     for i, (dr, dc) in enumerate(direction_vecs):
                         nr, nc = r+dr, c+dc
                         
                         # Can only evaluate if in View or Goal direction heuristic
                         # Logic: If neighbor is known WALL -> Penalty. 
-                        # If neighbor is known GOAL -> High Reward.
-                        # If neighbor is EMPTY/UNKNOWN -> Score based on Goal Dist (Heuristic)
-                        # Problem: If stuck in local minimum, this will oscillate.
+                        # Use Goal heuristic if available.
                         
-                        if 0 <= nr < env.height and 0 <= nc < env.width:
-                            val = view.get((nr, nc), -2) # -2 = Unknown
-                            
-                            if val == 1: # Wall
-                                possibles.append((i, -999))
+                        cell = view.get((nr, nc), -1) # -1 if unknown (out of view)
+                        
+                        score = 0
+                        if cell == 1: # Wall in View
+                             score = -9999
+                        elif cell == -1: # Unknown
+                             score = 0 # Neutral
+                        else: # Empty/Goal in View
+                             score = 0
+                        
+                        # Adds heuristic ONLY IF Goal is Known (Strict Fog kills this)
+                        if obs['goal_pos'] is not None:
+                            # Manhattan Heuristic (Guide)
+                            gr, gc = obs['goal_pos']
+                            dist_before = abs(r - gr) + abs(c - gc)
+                            dist_after = abs(nr - gr) + abs(nc - gc)
+                            if dist_after < dist_before:
+                                score += 10 # Good direction
                             else:
-                                # Empty (0), Goal (2), or Unknown (-2)
-                                score = 0
-                                if val == 2: score += 100
-                                
-                                # Heuristic: Closer to goal?
-                                dist = abs(nr - gr) + abs(nc - gc)
-                                score -= dist 
-                                
-                                # Disincentivize Unknown slightly less than Wall? 
-                                # Or treat Unknown as potentially empty.
-                                possibles.append((i, score))
-                        else:
-                            possibles.append((i, -999)) # Bounds
-                
-                # Select best move
+                                score -= 1 # Worse direction
+                        
+                        possibles.append((i, score))
                 max_score = max(possibles, key=lambda x: x[1])[1]
                 best_moves = [move for move, score in possibles if score == max_score]
                 action = random.choice(best_moves)
