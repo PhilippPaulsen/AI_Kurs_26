@@ -30,12 +30,22 @@ html, body, .stApp {
     font-weight: 500 !important;
 }
 
+/* Metrics labels */
+[data-testid="stMetricLabel"] {
+    color: #bbbbbb !important;
+}
+
+/* Metrics values */
+[data-testid="stMetricValue"] {
+    color: #ffffff !important;
+}
+
 /* Sidebar Titles and Subheaders */
 [data-testid="stSidebar"] h1, 
 [data-testid="stSidebar"] h2, 
 [data-testid="stSidebar"] h3 {
     color: #00ff00 !important;
-    text-shadow: 0 0 5px rgba(0, 255, 0, 0.2);
+    text-shadow: 0 0 5px rgba(0, 255, 0, 0.4);
 }
 
 /* Sidebar Section Dividers/Labels */
@@ -447,7 +457,7 @@ def render_grid_html(env, agent_type, percept_enabled, q_agent=None):
             else:
                 # In Percept Shadow (Unobserved)
                 symbol = "░" 
-                style = "color: #333;" # Dimmed
+                style = "color: #777;" # Brighter Shadow
                 
                 # Check Memory for Model-Based
                 if agent_type == "Modell-basiert" and pos in env.memory_map:
@@ -455,7 +465,7 @@ def render_grid_html(env, agent_type, percept_enabled, q_agent=None):
                     if val == 1: symbol = "▒" # Ghost Wall
                     elif val == 2: symbol = "⚐" # Ghost Goal
                     else: symbol = "&nbsp;" # Empty Known
-                    style = "color: #555;" # Dimmed for memory
+                    style = "color: #aaa;" # Dimmed for memory
                 
                 # Q-Learning: Show known Q-values even in shadow?
                 # User constraint: "Felder außerhalb ... visuell als 'Unobserved' (░) markiert werden."
