@@ -263,6 +263,16 @@ if 'env' not in st.session_state:
     # Training History for Q-Learning
     st.session_state.training_history = []
 
+# HOTFIX: Ensure Environment has new methods (Fixes AttributeError if session is stale)
+if not hasattr(st.session_state.env, 'reset_agent'):
+    st.warning("Update detected: Resetting Environment to apply fixes...")
+    st.session_state.env = Environment(10, 10, step_penalty=-0.1, goal_reward=100.0, wall_penalty=-5.0)
+    # Current Episode Tracker
+    st.session_state.current_episode = {'steps': 0, 'return': 0.0, 'last_reward': 0.0, 'last_action': None}
+    # Training History for Q-Learning
+    st.session_state.training_history = []
+    st.rerun()
+
 # --- 4. SIDEBAR ---
 
 
@@ -604,11 +614,39 @@ with zone_didactics:
 
 # 3. FILL ZONE A: ENVIRONMENT HEADER
 with zone_env:
-    st.caption("Environment: Grid World")
-    if percept_enabled:
-        st.caption("Observability: Partially Observable (radius = 1)")
-    else:
-        st.caption("Observability: Fully Observable (complete observation)")
+    # --- AGENT HEADER ---
+    header_title = ""
+    header_desc = ""
+    header_context = ""
+    
+    if agent_type == "Manuell":
+        header_title = "Manual Agent — Extern gesteuerte Policy"
+        header_desc = "Der Agent folgt keiner internen Entscheidungslogik.<br>Actions werden direkt vom User bestimmt."
+        header_context = "Environment: Grid World · Observability: abhängig vom Percept Field."
+    elif agent_type == "Reflex-Agent":
+        header_title = "Reflex Agent — Reactive Policy ohne Memory"
+        header_desc = "Action basiert ausschließlich auf aktuellem Percept.<br>Kein interner State, keine Planung."
+        header_context = "Environment: Grid World · Observability: lokal begrenzt (radius = 1)."
+    elif agent_type == "Modell-basiert":
+        header_title = "Model-Based Agent — Interner State erweitert Perception"
+        header_desc = "Der Agent speichert vergangene Information in einem internen Modell.<br>State ≠ Perception."
+        header_context = "Environment: Grid World · Observability wird durch Memory kompensiert."
+    elif agent_type == "Q-Learning":
+        header_title = "Q-Learning Agent — Value-based Learning"
+        header_desc = "Der Agent lernt eine Policy durch iterative Reward-Optimierung.<br>Exploration (ε) steuert Lernverhalten."
+        header_context = "Environment: Grid World als MDP · Observability abhängig vom State-Design."
+
+    st.markdown(f"""
+    <div style="margin-bottom: 10px;">
+        <h3 style="margin: 0; padding: 0; font-size: 1.2rem; color: #eee;">{header_title}</h3>
+        <div style="font-size: 0.9rem; color: #ccc; line-height: 1.4; margin-top: 2px;">
+            {header_desc}
+        </div>
+        <div style="font-size: 0.8rem; color: #888; margin-top: 4px;">
+            {header_context}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     
     # Placeholder for the Grid (to be rendered later)
     grid_placeholder = st.empty()
