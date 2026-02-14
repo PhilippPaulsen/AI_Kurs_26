@@ -1371,7 +1371,32 @@ if agent_type == "Q-Learning" and st.session_state.q_agent:
                 q_grid[r, c] = np.max(q_vals)
                 
         st.dataframe(pd.DataFrame(q_grid).style.background_gradient(cmap="RdYlGn", axis=None, vmin=-1.0, vmax=1.0))
+        st.dataframe(pd.DataFrame(q_grid).style.background_gradient(cmap="RdYlGn", axis=None, vmin=-1.0, vmax=1.0))
         st.caption("ℹ️ Projektion: Zeigt, wie gut der Agent die lokale Situation an jeder Position bewertet. (Rot=Negativ, Grün=Positiv)")
+        
+        # Didactic Explanation for State Aliasing
+        if percept_enabled:
+             with st.expander("❓ Warum ist die Map so gleichförmig / undifferenziert?", expanded=True):
+                 if strict_fog:
+                     st.write("""
+                     **Das ist "State Aliasing" (Zustands-Verschmelzung)!**
+                     
+                     Da der Agent im **Strict Fog** (Blind-Modus) weder seine Position noch die Richtung zum Ziel kennt, sehen für ihn **alle leeren Felder gleich aus** (State: `('Neighbors': Empty)`).
+                     
+                     Daher lernt er für *alle* leeren Felder denselben Q-Wert (den Durchschnittswert seiner Erfahrung). Er kann nicht unterscheiden, ob er am Start oder kurz vor dem Ziel ist. 
+                     
+                     Dies zeigt perfekt, warum einfache Reflex-Agenten/Q-Learner in POMDPs ohne Gedächtnis scheitern: Sie können gleiche Beobachtungen an unterschiedlichen Orten nicht trennen.
+                     """)
+                 else:
+                     st.write("""
+                     **Generalisierung durch den Kompass.**
+                     
+                     Im Nebel-Modus lernt der Agent Regeln wie: *"Wenn kein Hindernis da ist und das Ziel im Süd-Osten liegt -> Gehe Süd-Ost"*.
+                     
+                     Diese Regel gilt für **jeden** Ort, an dem das Ziel süd-östlich liegt. Daher haben diese Orte alle denselben (oder sehr ähnlichen) Q-Wert.
+                     
+                     Im Gegensatz zum "Full Mode" (wo jeder Ort ein eigener State ist), fasst der "Fog Mode" viele Orte zu Clustern zusammen (Generalisierung). Das ist effizienter, führt aber zu einer "stumpferen" Heatmap.
+                     """)
 
     else:
         # Full Obs -> q_full matrix exists
