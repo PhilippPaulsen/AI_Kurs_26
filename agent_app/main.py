@@ -535,6 +535,164 @@ zone_didactics = st.expander("🎓 Didaktik: Warum verhält sich der Agent so?",
 zone_actions = st.container()
 
 
+# Init Grid Placeholder immediately for synchronous updates
+with zone_env:
+    grid_placeholder = st.empty()
+
+# --- 5. INPUT LOGIC & ACTIONS (Relocated Phase) ---
+action = None # Initialize action
+
+# Keyboard Logic (Hidden)
+import streamlit.components.v1 as components
+js_code = """
+<script>
+const doc = window.parent.document;
+doc.addEventListener('keydown', function(e) {
+    let btnToken = null;
+    if (e.key === 'ArrowUp') btnToken = "⬆️";
+    else if (e.key === 'ArrowDown') btnToken = "⬇️";
+    else if (e.key === 'ArrowLeft') btnToken = "⬅️";
+    else if (e.key === 'ArrowRight') btnToken = "➡️";
+    
+    if (btnToken) {
+        const buttons = Array.from(doc.querySelectorAll('button'));
+        const targetBtn = buttons.find(el => el.innerText.includes(btnToken));
+        if (targetBtn) {
+            targetBtn.click();
+        }
+    }
+});
+</script>
+"""
+components.html(js_code, height=0, width=0)
+
+
+# MANUAL CONTROLS in Zone D
+if agent_type == "Manuell":
+    with zone_actions:
+        st.markdown("### Actions")
+        st.caption("Steuerung: Nutze **Pfeiltasten** oder Buttons.")
+        # Compact Centered Layout
+        _, col_up, _ = st.columns([14, 2, 14])
+        with col_up:
+            if st.button("⬆️", key="btn_up_v2", help="Nach Oben"): action = 0
+                
+        _, col_left, col_down, col_right, _ = st.columns([12, 2, 2, 2, 12])
+        with col_left:
+            if st.button("⬅️", key="btn_left_v2", help="Nach Links"): action = 2
+        with col_down:
+            if st.button("⬇️", key="btn_down_v2", help="Nach Unten"): action = 1
+        with col_right:
+            if st.button("➡️", key="btn_right_v2", help="Nach Rechts"): action = 3
+
+# AUTOMATIC AGENT LOGIC
+if agent_type != "Manuell":
+    steps_to_run = 0
+    with zone_actions: # Ensure button acts in Zone D
+        if st.button("SCHRITT / RUN"):
+            steps_to_run = 1
+    
+    if auto_run:
+        steps_to_run = 50 
+    
+    if steps_to_run > 0 and not env.game_over:
+        # Placeholder is already defined
+        placeholder = grid_placeholder
+        
+        for _ in range(steps_to_run):
+            if env.game_over: break
+            
+            # 1. REFLEX
+            if agent_type == "Reflex-Agent":
+                view = env.get_percept_view(1) # Uses Percept
+                possibles = []
+                for i, (dr, dc) in enumerate([(-1,0), (1,0), (0,-1), (0,1)]):
+                    nr, nc = env.agent_pos[0]+dr, env.agent_pos[1]+dc
+                    
+                    if 0 <= nr < env.height and 0 <= nc < env.width:
+                        if (nr, nc) in view:
+                            if env.grid[nr, nc] == 2: possibles.append((i, 100))
+                            elif env.grid[nr, nc] == 1: possibles.append((i, -100))
+                            else: possibles.append((i, 0))
+                        else:
+                            possibles.append((i, -10)) # Unknown
+                    else:
+                        possibles.append((i, -100)) # Out of bounds
+                
+                max_score = max(possibles, key=lambda x: x[1])[1]
+                best_moves = [move for move, score in possibles if score == max_score]
+                action = random.choice(best_moves)
+            
+            # 2. MODEL-BASED
+            elif agent_type == "Modell-basiert":
+                c_view = env.get_percept_view(1)
+                for pos in c_view:
+                    if 0 <= pos[0] < env.height and 0 <= pos[1] < env.width:
+                         env.memory_map[pos] = env.grid[pos]
+                action = random.randint(0, 3)
+
+            # 3. Q-LEARNING
+            elif agent_type == "Q-Learning":
+                if st.session_state.q_agent is None:
+                    st.session_state.q_agent = QAgent(env, alpha, gamma, epsilon)
+                
+                qa = st.session_state.q_agent
+                qa.alpha, qa.gamma, qa.epsilon = alpha, gamma, epsilon
+                
+                s = env.agent_pos
+                action = qa.act(s)
+                qa.post_step(s, action)
+
+            # EXECUTE ACTION
+            if action is not None and not env.game_over:
+                next_s, r, done = env.step(action)
+                
+                st.session_state.current_episode['steps'] += 1
+                st.session_state.current_episode['return'] += r
+                st.session_state.current_episode['last_reward'] = r
+                st.session_state.current_episode['last_action'] = ["UP", "DOWN", "LEFT", "RIGHT"][action]                
+                if agent_type == "Q-Learning" and st.session_state.q_agent:
+                    st.session_state.q_agent.learn(None, r, next_s)
+                
+                if steps_to_run > 1:
+                     grid_html = render_grid_html(env, agent_type, percept_enabled, st.session_state.q_agent if agent_type == "Q-Learning" else None)
+                     placeholder.markdown(grid_html, unsafe_allow_html=True)
+                     time.sleep(speed)
+                     
+                     if done: 
+                         st.balloons()
+                         st.session_state.logs.append("ZIEL ERREICHT!")
+                         
+                         stat_entry = st.session_state.stats[agent_type]
+                         stat_entry['episodes'] += 1
+                         stat_entry['wins'] += 1
+                         stat_entry['total_steps'] += st.session_state.current_episode['steps']
+                         stat_entry['total_return'] += st.session_state.current_episode['return']
+                         break
+                         
+        if auto_run and not env.game_over:
+             time.sleep(speed)
+             st.rerun()
+
+# MANUAL EXECUTION
+if agent_type == "Manuell" and action is not None and not env.game_over:
+    next_s, r, done = env.step(action)
+    
+    st.session_state.current_episode['steps'] += 1
+    st.session_state.current_episode['return'] += r
+    st.session_state.current_episode['last_reward'] = r
+    st.session_state.current_episode['last_action'] = ["UP", "DOWN", "LEFT", "RIGHT"][action]    
+    if done:
+        st.balloons()
+        st.session_state.logs.append("ZIEL ERREICHT!")
+        
+        stat_entry = st.session_state.stats[agent_type]
+        stat_entry['episodes'] += 1
+        stat_entry['wins'] += 1
+        stat_entry['total_steps'] += st.session_state.current_episode['steps']
+        stat_entry['total_return'] += st.session_state.current_episode['return']
+
+
 # 2. FILL ZONE C: DIDACTICS
 with zone_didactics:
     # Custom CSS for Tags
@@ -662,8 +820,7 @@ with zone_env:
     </div>
     """, unsafe_allow_html=True)
     
-    # Placeholder for the Grid (to be rendered later)
-    grid_placeholder = st.empty()
+
 
 
 # 4. FILL ZONE B: AGENT METRICS
@@ -758,156 +915,7 @@ with zone_agent:
             st.caption("Klicke zum Bestätigen.")
 
 
-# 5. INPUT LOGIC & ACTIONS (Zone D)
-action = None # Initialize action
 
-# Keyboard Logic (Hidden)
-import streamlit.components.v1 as components
-js_code = """
-<script>
-const doc = window.parent.document;
-doc.addEventListener('keydown', function(e) {
-    let btnToken = null;
-    if (e.key === 'ArrowUp') btnToken = "⬆️";
-    else if (e.key === 'ArrowDown') btnToken = "⬇️";
-    else if (e.key === 'ArrowLeft') btnToken = "⬅️";
-    else if (e.key === 'ArrowRight') btnToken = "➡️";
-    
-    if (btnToken) {
-        const buttons = Array.from(doc.querySelectorAll('button'));
-        const targetBtn = buttons.find(el => el.innerText.includes(btnToken));
-        if (targetBtn) {
-            targetBtn.click();
-        }
-    }
-});
-</script>
-"""
-components.html(js_code, height=0, width=0)
-
-
-# MANUAL CONTROLS in Zone D
-if agent_type == "Manuell":
-    with zone_actions:
-        st.markdown("### Actions")
-        st.caption("Steuerung: Nutze **Pfeiltasten** oder Buttons.")
-        # Compact Centered Layout
-        _, col_up, _ = st.columns([14, 2, 14])
-        with col_up:
-            if st.button("⬆️", key="btn_up_v2", help="Nach Oben"): action = 0
-                
-        _, col_left, col_down, col_right, _ = st.columns([12, 2, 2, 2, 12])
-        with col_left:
-            if st.button("⬅️", key="btn_left_v2", help="Nach Links"): action = 2
-        with col_down:
-            if st.button("⬇️", key="btn_down_v2", help="Nach Unten"): action = 1
-        with col_right:
-            if st.button("➡️", key="btn_right_v2", help="Nach Rechts"): action = 3
-
-# AUTOMATIC AGENT LOGIC
-if agent_type != "Manuell":
-    steps_to_run = 0
-    if st.button("SCHRITT / RUN"):
-        steps_to_run = 1
-    elif auto_run:
-        steps_to_run = 50 
-    
-    if steps_to_run > 0 and not env.game_over:
-        # Use the placeholder in Zone A
-        placeholder = grid_placeholder
-        
-        for _ in range(steps_to_run):
-            if env.game_over: break
-            
-            # 1. REFLEX
-            if agent_type == "Reflex-Agent":
-                view = env.get_percept_view(1) # Uses Percept
-                possibles = []
-                for i, (dr, dc) in enumerate([(-1,0), (1,0), (0,-1), (0,1)]):
-                    nr, nc = env.agent_pos[0]+dr, env.agent_pos[1]+dc
-                    
-                    if 0 <= nr < env.height and 0 <= nc < env.width:
-                        if (nr, nc) in view:
-                            if env.grid[nr, nc] == 2: possibles.append((i, 100))
-                            elif env.grid[nr, nc] == 1: possibles.append((i, -100))
-                            else: possibles.append((i, 0))
-                        else:
-                            possibles.append((i, -10)) # Unknown
-                    else:
-                        possibles.append((i, -100)) # Out of bounds
-                
-                max_score = max(possibles, key=lambda x: x[1])[1]
-                best_moves = [move for move, score in possibles if score == max_score]
-                action = random.choice(best_moves)
-            
-            # 2. MODEL-BASED
-            elif agent_type == "Modell-basiert":
-                c_view = env.get_percept_view(1)
-                for pos in c_view:
-                    if 0 <= pos[0] < env.height and 0 <= pos[1] < env.width:
-                         env.memory_map[pos] = env.grid[pos]
-                action = random.randint(0, 3)
-
-            # 3. Q-LEARNING
-            elif agent_type == "Q-Learning":
-                if st.session_state.q_agent is None:
-                    st.session_state.q_agent = QAgent(env, alpha, gamma, epsilon)
-                
-                qa = st.session_state.q_agent
-                qa.alpha, qa.gamma, qa.epsilon = alpha, gamma, epsilon
-                
-                s = env.agent_pos
-                action = qa.act(s)
-                qa.post_step(s, action)
-
-            # EXECUTE ACTION
-            if action is not None and not env.game_over:
-                next_s, r, done = env.step(action)
-                
-                st.session_state.current_episode['steps'] += 1
-                st.session_state.current_episode['return'] += r
-                st.session_state.current_episode['last_reward'] = r
-                st.session_state.current_episode['last_action'] = ["UP", "DOWN", "LEFT", "RIGHT"][action]                
-                if agent_type == "Q-Learning" and st.session_state.q_agent:
-                    st.session_state.q_agent.learn(None, r, next_s)
-                
-                if steps_to_run > 1:
-                     grid_html = render_grid_html(env, agent_type, percept_enabled, st.session_state.q_agent if agent_type == "Q-Learning" else None)
-                     placeholder.markdown(grid_html, unsafe_allow_html=True)
-                     time.sleep(speed)
-                     
-                     if done: 
-                         st.balloons()
-                         st.session_state.logs.append("ZIEL ERREICHT!")
-                         
-                         stat_entry = st.session_state.stats[agent_type]
-                         stat_entry['episodes'] += 1
-                         stat_entry['wins'] += 1
-                         stat_entry['total_steps'] += st.session_state.current_episode['steps']
-                         stat_entry['total_return'] += st.session_state.current_episode['return']
-                         break
-                         
-        if auto_run and not env.game_over:
-             time.sleep(speed)
-             st.rerun()
-
-# MANUAL EXECUTION
-if agent_type == "Manuell" and action is not None and not env.game_over:
-    next_s, r, done = env.step(action)
-    
-    st.session_state.current_episode['steps'] += 1
-    st.session_state.current_episode['return'] += r
-    st.session_state.current_episode['last_reward'] = r
-    st.session_state.current_episode['last_action'] = ["UP", "DOWN", "LEFT", "RIGHT"][action]    
-    if done:
-        st.balloons()
-        st.session_state.logs.append("ZIEL ERREICHT!")
-        
-        stat_entry = st.session_state.stats[agent_type]
-        stat_entry['episodes'] += 1
-        stat_entry['wins'] += 1
-        stat_entry['total_steps'] += st.session_state.current_episode['steps']
-        stat_entry['total_return'] += st.session_state.current_episode['return']
 
 # --- 6. RENDERER (ASCII/EMOJI) ---
 if not (agent_type != "Manuell" and auto_run):
