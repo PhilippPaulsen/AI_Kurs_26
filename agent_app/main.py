@@ -270,6 +270,17 @@ if grid_n != st.session_state.env.width:
 agent_type = st.sidebar.selectbox("Agenten Intelligenz", ["Manuell", "Reflex-Agent", "Modell-basiert", "Q-Learning"])
 st.session_state.agent_str = agent_type
 
+# Progression Display
+st.sidebar.caption("Entwicklungsstufe:")
+if agent_type == "Reflex-Agent":
+    st.sidebar.markdown("**Reactive** → Model-Based → Learning")
+elif agent_type == "Modell-basiert":
+    st.sidebar.markdown("Reactive → **Model-Based** → Learning")
+elif agent_type == "Q-Learning":
+    st.sidebar.markdown("Reactive → Model-Based → **Learning**")
+else: # Manual
+    st.sidebar.markdown("<span style='color:#777'>Reactive → Model-Based → Learning</span>", unsafe_allow_html=True)
+
 # Q-Params (Context Sensitive)
 alpha, gamma, epsilon = 0.5, 0.9, 0.1
 if agent_type == "Q-Learning":
@@ -511,7 +522,7 @@ zone_env = st.container()
 zone_agent = st.container()
 
 # Zone C: Didactics (Collapsible, reflection)
-zone_didactics = st.expander("🎓 Lernhinweise & Reflexion: Warum verhält sich dieser Agent so?", expanded=False)
+zone_didactics = st.expander("🎓 Didaktik: Warum verhält sich der Agent so?", expanded=False)
 
 # Zone D: Actions (Controls)
 zone_actions = st.container()
@@ -534,21 +545,50 @@ with zone_didactics:
     </style>
     """, unsafe_allow_html=True)
 
+    # Agent-Specific Content
     if agent_type == "Manuell":
-        st.write("Du steuerst den Agenten direkt.")
+        st.write("Policy wird vollständig vom Menschen bestimmt.")
         st.markdown('<span class="agent-tag">Policy: human</span> <span class="agent-tag">Memory: none</span> <span class="agent-tag">Planning: none</span>', unsafe_allow_html=True)
         st.write("---")
-        st.write("**Ziel:** Maximiere den Return in 20 Schritten.")
-        st.write("**Mini-Task:** Spiele 10 Schritte mit Percept Field ON und 10 Schritte OFF. Was ändert sich an deiner Strategie?")
+        st.markdown("**🎯 Lernfokus:** Wie beeinflusst deine eigene Strategy den Return?")
+        with st.expander("🤔 Reflexionsfragen"):
+            st.markdown("- Welche Information nutzt du zur Entscheidung?\n- Wie würdest du deine Policy beschreiben?\n- Reagierst du eher lokal oder planst du voraus?")
+        
+        with st.expander("📐 Theorie (Optional)"):
+            st.markdown("Agent = Perception → Action")
+
     elif agent_type == "Reflex-Agent":
-        st.write("Dieser Agent reagiert direkt auf das aktuelle Percept (Reiz-Reaktion).")
+        st.write("Action basiert nur auf aktuellem Percept (keine Memory).")
         st.markdown('<span class="agent-tag">Policy: reactive</span> <span class="agent-tag">Memory: none</span> <span class="agent-tag">Planning: none</span>', unsafe_allow_html=True)
+        st.write("---")
+        st.markdown("**🎯 Lernfokus:** Was passiert bei Partial Observability ohne Gedächtnis?")
+        with st.expander("🤔 Reflexionsfragen"):
+            st.markdown("- Warum wiederholt der Agent möglicherweise ineffiziente Bewegungen?\n- Welche Information fehlt ihm?\n- Würde ein internes State-Modell helfen?")
+        
+        with st.expander("📐 Theorie (Optional)"):
+            st.latex(r"\pi(a|p)")
+
     elif agent_type == "Modell-basiert":
-        st.write("Dieser Agent nutzt eine interne Karte, um sich an besuchte Orte und Wände zu erinnern.")
+        st.write("Interner State speichert vergangene Information.")
         st.markdown('<span class="agent-tag">Policy: reactive</span> <span class="agent-tag">Memory: internal map</span> <span class="agent-tag">Planning: limited</span>', unsafe_allow_html=True)
+        st.write("---")
+        st.markdown("**🎯 Lernfokus:** Wie kompensiert internes Gedächtnis fehlende Observation?")
+        with st.expander("🤔 Reflexionsfragen"):
+            st.markdown("- Welche Information speichert der Agent?\n- Wann ist Model-Based besser als Reflex?\n- Ist der Agent jetzt optimal oder nur informierter?")
+            
+        with st.expander("📐 Theorie (Optional)"):
+            st.latex(r"State_t = f(State_{t-1}, Percept_t)")
+
     elif agent_type == "Q-Learning":
-        st.write("Der Agent lernt durch Belohnung und Bestrafung (Trial & Error).")
+        st.write("Policy wird durch Reward-Lernen angepasst.")
         st.markdown('<span class="agent-tag">Policy: learned</span> <span class="agent-tag">Memory: Q-table</span> <span class="agent-tag">Exploration: ε-greedy</span>', unsafe_allow_html=True)
+        st.write("---")
+        st.markdown("**🎯 Lernfokus:** Exploration vs. Exploitation.")
+        with st.expander("🤔 Reflexionsfragen"):
+            st.markdown("- Wie beeinflusst ε das Verhalten?\n- Warum steigt der Return mit Training?\n- Was bedeutet Konvergenz?")
+
+        with st.expander("📐 Theorie (Optional)"):
+            st.latex(r"Q(s,a) \leftarrow r + \gamma \max Q(s',a')")
 
     # Didactic box with live analysis
     st.info(f"""
@@ -599,7 +639,7 @@ with zone_agent:
         if auto_run:
             st.caption("Auto mode running — open ‘Lernhinweise’ for analysis.")
         elif curr_ep['steps'] >= 20:
-            st.info("Auswertung: Wie hat Observability deine Strategy beeinflusst?")
+            st.info("🏁 **Phase Complete:** War dieser Agent effizienter als der vorherige? Warum?")
 
 
 # 5. INPUT LOGIC & ACTIONS (Zone D)
