@@ -165,6 +165,49 @@ def test_heatmap_attributes():
     else:
          print("FAIL: Q-Agent missing q_full.")
 
+def test_fog_heatmap_projection():
+    print("\n--- Test Fog Heatmap Projection Logic ---")
+    env = Environment(10, 10)
+    qa = QAgent(env, 0.5, 0.9, 0.1)
+    
+    # Manually train a bit in Fog
+    obs = env.get_observation(True)
+    qa.act(obs)
+    qa.post_step(obs, 0)
+    qa.learn(obs, 10, obs)
+    
+    # Try to project
+    try:
+        q_grid = np.zeros((env.height, env.width))
+        # Just test one cell
+        r, c = 5, 5
+        # Synthesize View
+        syn_view = {}
+        radius = 1
+        for i in range(-radius, radius+1):
+            for j in range(-radius, radius+1):
+                if abs(i) + abs(j) <= radius:
+                    nr, nc = r+i, c+j
+                    val = -1
+                    if 0 <= nr < env.height and 0 <= nc < env.width:
+                        val = env.grid[nr, nc]
+                    syn_view[(nr, nc)] = val
+        
+        syn_obs = {
+            'mode': 'fog',
+            'agent_pos': (r, c),
+            'goal_pos': env.goal_pos,
+            'view': syn_view,
+            'is_game_over': False
+        }
+        
+        state_key = qa.encode_state(syn_obs)
+        vals = qa.get_q(state_key)
+        assert len(vals) == 4
+        print("PASS: Fog Heatmap projection logic works.")
+    except Exception as e:
+        print(f"FAIL: Fog Heatmap projection failed: {e}")
+
 if __name__ == "__main__":
     test_environment_randomization()
     test_get_observation()
@@ -172,3 +215,4 @@ if __name__ == "__main__":
     test_model_based_planner()
     test_q_agent_act_obs()
     test_heatmap_attributes()
+    test_fog_heatmap_projection()

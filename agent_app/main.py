@@ -1252,7 +1252,51 @@ if agent_type == "Q-Learning" and st.session_state.training_history:
 if agent_type == "Q-Learning" and st.session_state.q_agent:
     st.write("### Wissens-Karte (Max Q-Wert)")
     if percept_enabled:
-         st.info("⚠️ Im Fog-Modus existiert keine globale Wissenskarte. Der Agent lernt lokale Zustände (z.B. 'Wand links').")
+        # Fog Mode: Project learned local policy onto the current grid
+        # We iterate every cell, simulate what the agent WOULD see, and query Q-Values.
+        q_grid = np.zeros((env.height, env.width))
+        qa = st.session_state.q_agent
+        
+        for r in range(env.height):
+            for c in range(env.width):
+                # Skip Walls? No, show value even for walls (agent might think it's good if it hasn't learned)
+                # But physically he can't be in a wall. 
+                # Let's just calculate for all to show the "field".
+                
+                # Synthesize View (Radius 1)
+                syn_view = {}
+                radius = 1
+                for i in range(-radius, radius+1):
+                    for j in range(-radius, radius+1):
+                        if abs(i) + abs(j) <= radius:
+                            nr, nc = r+i, c+j
+                            # Check boundaries / walls from True Grid
+                            # Agent doesn't know True Grid? 
+                            # Wait, we are visualizing "How good does the agent think this position is?"
+                            # If the agent were at (r,c), it would see neighbors.
+                            # We assume the environment is static for this visualization.
+                            val = -1 # Boundary
+                            if 0 <= nr < env.height and 0 <= nc < env.width:
+                                val = st.session_state.env.grid[nr, nc]
+                            syn_view[(nr, nc)] = val
+                
+                # Synthesize Obs
+                syn_obs = {
+                    'mode': 'fog',
+                    'agent_pos': (r, c),
+                    'goal_pos': st.session_state.env.goal_pos,
+                    'view': syn_view,
+                    'is_game_over': False # Irrelevant for state encoding
+                }
+                
+                # Query Agent
+                state_key = qa.encode_state(syn_obs)
+                q_vals = qa.get_q(state_key)
+                q_grid[r, c] = np.max(q_vals)
+                
+        st.dataframe(pd.DataFrame(q_grid).style.background_gradient(cmap="Greens", axis=None))
+        st.caption("ℹ️ Projektion: Zeigt, wie gut der Agent die lokale Situation an jeder Position bewertet.")
+
     else:
         # Full Obs -> q_full matrix exists
         q_grid = np.max(st.session_state.q_agent.q_full, axis=2)
