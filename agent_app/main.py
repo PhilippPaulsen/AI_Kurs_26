@@ -1388,50 +1388,29 @@ if agent_type == "Q-Learning" and st.session_state.q_agent:
         g_min = np.min(q_grid)
         
         def q_color_styler(val):
+            # Neutral / Zero -> White
             if np.isclose(val, 0.0): return 'color: #ccc; background-color: white'
             
-            # Text Color
             txt = "black"
             
             if val < 0:
-                # Red Scale (Non-linear)
-                ref = max(abs(g_min), 5.0) # At least -5
+                # Red Scale (Desaturated / Pastel)
+                # Max opacity 0.5 to keep it "light"
+                ref = max(abs(g_min), 5.0) 
                 ratio = min(1.0, abs(val) / ref)
-                alpha = 0.1 + (ratio ** 0.5) * 0.9
+                # alpha 0.05 to 0.5
+                alpha = 0.05 + (ratio ** 0.5) * 0.45
                 return f'color: {txt}; background-color: rgba(255, 0, 0, {alpha:.2f})'
             else:
-                # Green Scale
+                # Green Scale (Desaturated / Pastel)
                 ref = max(g_max, 1.0)
                 ratio = min(1.0, val / ref)
-                alpha = 0.1 + (ratio ** 0.5) * 0.9
+                # alpha 0.05 to 0.5
+                alpha = 0.05 + (ratio ** 0.5) * 0.45
                 return f'color: {txt}; background-color: rgba(0, 255, 0, {alpha:.2f})'
 
         st.dataframe(pd.DataFrame(q_grid).style.applymap(q_color_styler))
         st.caption("ℹ️ Projektion: Zeigt, wie gut der Agent die lokale Situation an jeder Position bewertet. (Rot=Negativ, Grün=Positiv)")
-        
-        # Didactic Explanation for State Aliasing
-        if percept_enabled:
-             with st.expander("❓ Warum ist die Map so gleichförmig / undifferenziert?", expanded=True):
-                 if strict_fog:
-                     st.write("""
-                     **Das ist "State Aliasing" (Zustands-Verschmelzung)!**
-                     
-                     Da der Agent im **Strict Fog** (Blind-Modus) weder seine Position noch die Richtung zum Ziel kennt, sehen für ihn **alle leeren Felder gleich aus** (State: `('Neighbors': Empty)`).
-                     
-                     Daher lernt er für *alle* leeren Felder denselben Q-Wert (den Durchschnittswert seiner Erfahrung). Er kann nicht unterscheiden, ob er am Start oder kurz vor dem Ziel ist. 
-                     
-                     Dies zeigt perfekt, warum einfache Reflex-Agenten/Q-Learner in POMDPs ohne Gedächtnis scheitern: Sie können gleiche Beobachtungen an unterschiedlichen Orten nicht trennen.
-                     """)
-                 else:
-                     st.write("""
-                     **Generalisierung durch den Kompass.**
-                     
-                     Im Nebel-Modus lernt der Agent Regeln wie: *"Wenn kein Hindernis da ist und das Ziel im Süd-Osten liegt -> Gehe Süd-Ost"*.
-                     
-                     Diese Regel gilt für **jeden** Ort, an dem das Ziel süd-östlich liegt. Daher haben diese Orte alle denselben (oder sehr ähnlichen) Q-Wert.
-                     
-                     Im Gegensatz zum "Full Mode" (wo jeder Ort ein eigener State ist), fasst der "Fog Mode" viele Orte zu Clustern zusammen (Generalisierung). Das ist effizienter, führt aber zu einer "stumpferen" Heatmap.
-                     """)
 
     else:
         # Full Obs -> q_full matrix exists
@@ -1442,17 +1421,18 @@ if agent_type == "Q-Learning" and st.session_state.q_agent:
         g_min = np.min(q_grid)
         
         def q_color_styler(val):
+            # Neutral / Zero -> White
             if np.isclose(val, 0.0): return 'color: #ccc; background-color: white'
             txt = "black"
             if val < 0:
                 ref = max(abs(g_min), 5.0)
                 ratio = min(1.0, abs(val) / ref)
-                alpha = 0.1 + (ratio ** 0.5) * 0.9
+                alpha = 0.05 + (ratio ** 0.5) * 0.45
                 return f'color: {txt}; background-color: rgba(255, 0, 0, {alpha:.2f})'
             else:
                 ref = max(g_max, 1.0)
                 ratio = min(1.0, val / ref)
-                alpha = 0.1 + (ratio ** 0.5) * 0.9
+                alpha = 0.05 + (ratio ** 0.5) * 0.45
                 return f'color: {txt}; background-color: rgba(0, 255, 0, {alpha:.2f})'
                 
         st.dataframe(pd.DataFrame(q_grid).style.applymap(q_color_styler))
