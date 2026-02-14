@@ -1327,6 +1327,19 @@ if agent_type == "Q-Learning" and st.session_state.training_history:
 if agent_type == "Q-Learning" and st.session_state.q_agent:
     st.write("### Wissens-Karte (Max Q-Wert)")
     if percept_enabled:
+        # Check for Training/Mode Mismatch
+        # If we are in Strict Fog, we need 'fog_strict' keys.
+        # If we are in Normal Fog, we need 'fog' keys.
+        if st.session_state.q_agent and st.session_state.q_agent.q_fog:
+             # Check a sample key or count
+             has_strict_keys = any(k[0] == 'fog_strict' for k in st.session_state.q_agent.q_fog.keys())
+             has_normal_keys = any(k[0] == 'fog' and len(k) == 3 for k in st.session_state.q_agent.q_fog.keys())
+             
+             if strict_fog and not has_strict_keys and has_normal_keys:
+                 st.warning("⚠️ **Vorsicht:** Du hast 'Strict Fog' aktiviert, aber der Agent hat bisher nur im normalen Fog-Modus gelernt. **Bitte neu trainieren!** (Die Heatmap ist leer, weil der Agent die neuen 'blinden' Zustände noch nicht kennt.)")
+             elif not strict_fog and has_strict_keys and not has_normal_keys:
+                 st.warning("⚠️ **Vorsicht:** Du hast 'Strict Fog' deaktiviert. Der Agent kennt nur 'blinde' Zustände. **Bitte neu trainieren!**")
+
         # Fog Mode: Project learned local policy onto the current grid
         # We iterate every cell, simulate what the agent WOULD see, and query Q-Values.
         q_grid = np.zeros((env.height, env.width))
@@ -1370,7 +1383,6 @@ if agent_type == "Q-Learning" and st.session_state.q_agent:
                 q_vals = qa.get_q(state_key)
                 q_grid[r, c] = np.max(q_vals)
                 
-        st.dataframe(pd.DataFrame(q_grid).style.background_gradient(cmap="RdYlGn", axis=None, vmin=-1.0, vmax=1.0))
         st.dataframe(pd.DataFrame(q_grid).style.background_gradient(cmap="RdYlGn", axis=None, vmin=-1.0, vmax=1.0))
         st.caption("ℹ️ Projektion: Zeigt, wie gut der Agent die lokale Situation an jeder Position bewertet. (Rot=Negativ, Grün=Positiv)")
         
