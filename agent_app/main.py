@@ -338,7 +338,7 @@ speed = st.sidebar.slider("Geschwindigkeit (Wartezeit in s)", 0.0, 1.0, 0.2)
 percept_enabled = st.sidebar.checkbox("Percept Field (Sichtfeld)", value=True, help="Wenn aktiv, sieht der Agent nur benachbarte Felder (Radius 1).")
 
 # NEW: Current Percept Expander
-with st.sidebar.expander("👁️ Current Percept", expanded=True):
+with st.sidebar.expander("Perception (Current Observation)", expanded=True):
     percepts = st.session_state.env.get_current_percept_text()
     # Compact 2-Column Layout
     col1, col2 = st.columns(2)
@@ -551,14 +551,14 @@ st.write("Steuerung: Nutze **Pfeiltasten** oder Buttons.")
 # Environment & Observability Labeling
 st.caption("Environment: Grid World")
 if percept_enabled:
-    st.caption("Environment: Partially Observable")
+    st.caption("Environment: Partially Observable (radius = 1)")
 else:
-    st.caption("Environment: Fully Observable")
+    st.caption("Environment: Fully Observable (complete observation)")
 
 # Live Metrics
 curr_ep = st.session_state.current_episode
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("Schritte", curr_ep['steps'])
+c1.metric("Schritte", f"{curr_ep['steps']} / 20")
 c1.caption("Explorierst du gerade oder exploitierst du?")
 
 c2.metric("Current State", str(st.session_state.env.agent_pos))
@@ -572,6 +572,11 @@ c3.caption("Reward = Bewertung der aktuellen Action.")
 c4.metric("Return (Gₜ)", f"{curr_ep['return']:.2f}", help="Gₜ = cumulative reward (Summe aller bisherigen Rewards)")
 
 st.caption("State = interne Repräsentation des Agenten (hier: Position im Environment).")
+st.caption("rₜ = Reward pro Schritt, Gₜ = Σ r")
+
+if curr_ep['steps'] >= 20:
+    st.info("Auswertung: Wie hat Observability deine Strategy beeinflusst?")
+
 st.info("Reflexionsfrage: Welche Information fehlt dir gerade, um optimal zu handeln?")
 
 # Agent Declaration
@@ -582,6 +587,7 @@ action = None # Initialize action
 
 # MANUAL INPUT MAPPING
 if agent_type == "Manuell":
+    st.markdown("### Actions")
     # Compact Centered Layout
     _, col_up, _ = st.columns([14, 2, 14])
     with col_up:
