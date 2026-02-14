@@ -199,40 +199,63 @@ class Environment:
         
         return self.agent_pos, -1, False # Out of bounds
 
-    def get_observation(self, percept_enabled=True, strict_fog=False):
+    def get_observation(self, mode="full"):
         """
-        Zentrale Schnittstelle für Agenten-Wahrnehmung.
-        Gibt ein Dict zurück, das ALLES enthält, was der Agent wissen darf.
-        Kein direkter Zugriff auf env.grid erlaubt!
+        Gibt dem Agenten die erlaubten Informationen basierend auf dem Modus.
+        mode: "full" (God Mode), "fog" (Percept Radius 1 + Pos), "strict" (POMDP/Blind/No Pos)
         """
-        obs = {
-            "agent_pos": self.agent_pos,
-            "goal_pos": self.goal_pos if not (percept_enabled and strict_fog) else None, # Hide Goal in Strict Fog
-            "is_game_over": self.game_over,
-            "percept_enabled": percept_enabled
-        }
-
-        if percept_enabled:
-            # FOG MODE: Local View Only (Radius 1)
-            # Returns dict of neighbors: {(r,c): val}
-            local_view = {}
-            r, c = self.agent_pos
-            radius = 1
-            for i in range(-radius, radius+1):
-                for j in range(-radius, radius+1):
-                    if abs(i) + abs(j) <= radius: # Manhattan < 1
-                        nr, nc = r+i, c+j
-                        if 0 <= nr < self.height and 0 <= nc < self.width:
-                            local_view[(nr, nc)] = self.grid[nr, nc]
-                        else:
-                            local_view[(nr, nc)] = -1 # Boundary
-            obs["view"] = local_view
-            obs["mode"] = "fog"
-        else:
-            # FULL MODE: Full Grid Access
-            obs["grid"] = self.grid.copy()
-            obs["mode"] = "full"
+        obs = {}
+        
+        # 1. Full Observability (God Mode)
+        if mode == "full":
+            obs['grid'] = self.grid.copy()
+            obs['agent_pos'] = self.agent_pos
+            obs['goal_pos'] = self.goal_pos
+            obs['mode'] = 'full'
+            obs['is_game_over'] = self.game_over
+            return obs
             
+        # 2. Local View (Common for Fog & Strict)
+        # Radius 1 around agent
+        r, c = self.agent_pos
+        view = {}
+        
+        # Determine if Goal is visible in Radius 1
+        goal_visible = False
+        if self.goal_pos:
+            gr, gc = self.goal_pos
+            if abs(gr - r) <= 1 and abs(gc - c) <= 1:
+                goal_visible = True
+        
+        # Build View (Radius 1)
+        for dr in [-1, 0, 1]:
+            for dc in [-1, 0, 1]:
+                nr, nc = r + dr, c + dc
+                if 0 <= nr < self.height and 0 <= nc < self.width:
+                    view[(nr, nc)] = self.grid[nr, nc]
+                else:
+                    view[(nr, nc)] = -1 # Boundary
+        
+        obs['view'] = view
+        obs['mode'] = mode # 'fog' or 'strict'
+        obs['goal_pos'] = self.goal_pos if goal_visible else None
+        
+        # 3. Distinguish Fog vs Strict
+        if mode == "fog":
+            obs['agent_pos'] = self.agent_pos
+        elif mode == "strict":
+            obs['agent_pos'] = None 
+            
+        # 4. PRE-CALCULATE RELATIVE NEIGHBORS (Crucial for Strict Mode)
+        # Order: Up (-1,0), Down (1,0), Left (0,-1), Right (0,1)
+        neighbors = []
+        for dr, dc in [(-1,0), (1,0), (0,-1), (0,1)]:
+            nr, nc = r+dr, c+dc
+            val = view.get((nr, nc), -1)
+            neighbors.append(val)
+        obs['neighbors'] = tuple(neighbors)
+        
+        obs['is_game_over'] = self.game_over
         return obs
 
     def get_percept_view(self, radius=1):
@@ -281,38 +304,25 @@ class QAgent:
         
     def encode_state(self, obs):
         mode = obs['mode']
-        agent_pos = obs['agent_pos']
+        agent_pos = obs.get('agent_pos')
         
         if mode == 'full':
             return ('full', agent_pos)
             
         elif mode == 'fog':
-            # Local View Encoding (Radius 1) + Relative Goal Direction
-            view = obs['view']
-            r, c = agent_pos
+            # Fog Mode (Percept)
+            # State: (Position, Local Neighbors)
+            # This allows learning the map (Memorization)
+            neighbors = obs['neighbors']
+            return ('fog', agent_pos, tuple(neighbors))
             
-            # 1. Encode Neighbors: Order Up, Down, Left, Right
-            # Values: 0=Empty, 1=Wall, 2=Goal, -1=Boundary
-            neighbors = []
-            for dr, dc in [(-1,0), (1,0), (0,-1), (0,1)]:
-                nr, nc = r+dr, c+dc
-                val = view.get((nr, nc), -1) 
-                neighbors.append(val)
-            
-            # 2. Encode Goal Direction (Sign of difference)
-            # ONLY if goal is known (not None)
-            if obs['goal_pos'] is not None:
-                gr, gc = obs['goal_pos']
-                dy, dx = gr - r, gc - c
-                
-                g_y = 0 if dy == 0 else (1 if dy > 0 else -1)
-                g_x = 0 if dx == 0 else (1 if dx > 0 else -1)
-                
-                return ('fog', tuple(neighbors), (g_y, g_x))
-            else:
-                # STRICT FOG: No Goal Info -> State is just Neighbors
-                # This causes state aliasing (POMDP behavior)
-                return ('fog_strict', tuple(neighbors))
+        else:
+            # Strict Mode (POMDP)
+            # State: (Local Neighbors ONLY)
+            # No Position -> State Aliasing
+            neighbors = obs['neighbors']
+            return ('strict', tuple(neighbors))
+
 
     def get_q(self, state_key):
         mode = state_key[0]
@@ -411,10 +421,8 @@ if grid_n != st.session_state.env.width:
     st.session_state.q_agent = None # Reset Q
     st.session_state.training_history = []
 
-# Percept Value (Read from Session State for Availability, Rendered Later)
-# Default to True if not yet in state
-percept_enabled = st.session_state.get('percept_field_on', True) 
-strict_fog = st.session_state.get('strict_fog_on', False) if percept_enabled else False 
+# Percept Value (Handled by new Selectbox below)
+ 
 
 # Agent Select
 agent_type = st.sidebar.selectbox("Agenten Intelligenz", ["Manuell", "Reflex-Agent", "Modell-basiert", "Q-Learning"])
@@ -470,13 +478,13 @@ if agent_type == "Q-Learning":
             
             # Run Episode
             while not env.game_over and steps < 200: # Limit steps
-                obs = env.get_observation(percept_enabled, strict_fog)
+                obs = env.get_observation(obs_mode)
                 a = qa.act(obs)
                 qa.post_step(obs, a)
                 
                 _, r, done = env.step(a)
                 
-                next_obs = env.get_observation(percept_enabled, strict_fog)
+                next_obs = env.get_observation(obs_mode)
                 qa.learn(obs, r, next_obs)
                 
                 steps += 1
@@ -499,9 +507,30 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("Simulations-Steuerung")
 auto_run = st.sidebar.checkbox("Auto-Lauf (Simulation)", value=False)
 speed = st.sidebar.slider("Geschwindigkeit (Wartezeit in s)", 0.0, 1.0, 0.2)
-st.sidebar.checkbox("Percept Field (Sichtfeld)", value=True, key='percept_field_on', help="Wenn aktiv, sieht der Agent nur benachbarte Felder (Radius 1).")
-if percept_enabled:
-    st.sidebar.checkbox("Strict Fog (Blind / POMDP)", value=False, key='strict_fog_on', help="Entfernt den Kompass (Zielrichtung). Agent sieht nur lokale Hindernisse und muss 'blind' suchen. (POMDP Verhalten)")
+st.sidebar.markdown("---")
+st.sidebar.subheader("Simulations-Steuerung")
+auto_run = st.sidebar.checkbox("Auto-Lauf (Simulation)", value=False)
+speed = st.sidebar.slider("Geschwindigkeit (Wartezeit in s)", 0.0, 1.0, 0.2)
+
+# Observability Selection
+obs_mode_label = st.sidebar.selectbox(
+    "👁️ Observability Mode",
+    ["Full Observability (God Mode)", "Percept Radius 1 (Partial)", "Strict Fog (POMDP)"],
+    index=1, # Default to Fog
+    help="Full: Alles sichtbar. Percept: Nur Radius 1 + Position. Strict: Nur Radius 1 (Blind)."
+)
+
+# Map label to internal mode string
+if "Full" in obs_mode_label:
+    obs_mode = "full"
+elif "Percept" in obs_mode_label:
+    obs_mode = "fog"
+else:
+    obs_mode = "strict"
+
+# Legacy variables wrapper (for rendering etc)
+percept_enabled = (obs_mode != "full")
+strict_fog = (obs_mode == "strict")
 
 
 
@@ -610,18 +639,62 @@ def render_grid_html(env, agent_type, percept_enabled, strict_fog=False, q_agent
                                     val = env.grid[nr, nc]
                                 syn_view[(nr, nc)] = val
                     
-                    # Strict Fog: Hide Goal
-                    syn_goal_pos = env.goal_pos if not strict_fog else None
+                    
+                    # 2. Synthesize Neighbors (Crucial for Q-Agent Fog/Strict Logic)
+                    neighbors = []
+                    for dr, dc in [(-1,0), (1,0), (0,-1), (0,1)]:
+                        nr, nc = r+dr, c+dc
+                        val = syn_view.get((nr, nc), -1)
+                        neighbors.append(val)
 
+                    # 3. Handle Strict Mode Logic
+                    syn_mode = 'strict' if strict_fog else 'fog'
+                    syn_agent_pos = None if strict_fog else (r, c)
+                    
+                    # Goal Visibility (Projection)
+                    # If goal is in radius 1, it is visible.
+                    # Global goal_pos is hidden in Strict Fog unless visible logic handles it?
+                    # get_observation sets obs['goal_pos'] logic.
+                    # Here we synthesize it.
+                    syn_goal_pos = None
+                    if env.goal_pos:
+                        gr, gc = env.goal_pos
+                        if abs(gr - r) <= 1 and abs(gc - c) <= 1:
+                            syn_goal_pos = env.goal_pos # Visible
+                        elif not strict_fog:
+                            syn_goal_pos = env.goal_pos # Global visible in Fog? Unclear.
+                            # Standard Fog Mode usually has NO Compass for Q-Learning if agent_pos is known.
+                            # But if I use `get_observation` logic:
+                            # Fog: goal_pos is set if visible.
+                            # Wait, `get_observation` sets `goal_pos` ONLY if visible?
+                            # Let's check `get_observation`:
+                            # `obs['goal_pos'] = self.goal_pos if goal_visible else None`
+                            # So even in Fog mode, goal is hidden if far.
+                            pass
+                    
+                    # Update local goal logic based on get_observation parity
+                    if strict_fog:
+                        syn_goal_pos_final = syn_goal_pos # Only if visible
+                    else:
+                        syn_goal_pos_final = syn_goal_pos # Same logic as Fog
+                        
                     syn_obs = {
-                        'mode': 'fog',
-                        'agent_pos': (r, c),
-                        'goal_pos': syn_goal_pos,
+                        'mode': syn_mode,
+                        'agent_pos': syn_agent_pos,
+                        'goal_pos': syn_goal_pos_final,
                         'view': syn_view,
+                        'neighbors': tuple(neighbors),
                         'is_game_over': False
                     }
                     state_key = q_agent.encode_state(syn_obs)
-                    q_data[r, c] = q_agent.get_q(state_key)
+                    
+                    # Get Max Q
+                    vals = q_agent.get_q(state_key)
+                    if vals is not None:
+                         val = np.max(vals)
+                    else:
+                         val = 0.0
+                    q_data[r, c] = val # Store single value for Heatmap (Max Q)
 
         # Determine Max/Min for Scaling
         g_max = np.max(q_data)
@@ -787,12 +860,11 @@ if agent_type != "Manuell":
             if env.game_over: break
             
             # --- GET OBSERVATION ---
-            obs = env.get_observation(percept_enabled, strict_fog)
+            obs = env.get_observation(obs_mode)
             
             # 1. REFLEX AGENT LOGIC
             if agent_type == "Reflex-Agent":
                 possibles = []
-                # 4 Directions: Up, Down, Left, Right
                 direction_vecs = [(-1,0), (1,0), (0,-1), (0,1)]
                 
                 if obs['mode'] == 'full':
@@ -816,7 +888,52 @@ if agent_type != "Manuell":
                             possibles.append((i, -9999)) # Outside
                             
                 else: 
-                    # FOG: Local View Evaluation
+                    # FOG or STRICT: Local View Evaluation
+                    # Goal only known if in radius (obs['goal_pos'] not None)
+                    # If Goal is None, we have NO HEURISTIC -> Random Walk (Exploration)
+                    
+                    neighbors = obs['neighbors'] # Tuple (Up, Down, Left, Right)
+                    goal_pos = obs.get('goal_pos')
+                    
+                    # We can directly map neighbors to actions
+                    # Actions: 0=Up, 1=Down, 2=Left, 3=Right (Matches neighbors order!)
+                    
+                    for i, val in enumerate(neighbors):
+                        if val == 1: # Wall
+                            pass 
+                        elif val == -1: # Boundary
+                            pass
+                        elif val == 2: # Goal Neighbor!
+                            possibles.append((i, 100)) # High Priority
+                        else:
+                             # Empty (0)
+                             # If we have a Goal Compass (Only if goal is visible in Radius 1)
+                             # We still need relative direction.
+                             # If goal_pos is set, we can implicitly assume we know direction?
+                             # Yes, if goal_pos is set, we know where it is relative to us (even if we don't know our global pos, we know goal is e.g. "Up-Right").
+                             # But `obs['goal_pos']` gives global coords.
+                             # If Strict -> No Agent Pos.
+                             # So we can't calc (gr-r, gc-c).
+                             # However, if Goal is in Radius 1, it IS one of the neighbors (or diagonal).
+                             # Diagonal neighbors are not in `neighbors` list (manhattan moves only).
+                             # But we might see goal diagonally in view.
+                             # For simplicity: Only move to neighbor if it IS the goal (val 2).
+                             # If Goal is diagonal, we need to pick best move.
+                             # Since we don't know "Up-Right" vs "Up-Left" without coords in Strict...
+                             # Actually `view` tells us.
+                             # But `neighbors` is just 4 values.
+                             # If goal is diagonal, `neighbors` will likely be 0,0,0,0 (empty).
+                             # So we move randomly. Next step goal might be adjacent.
+                             
+                             possibles.append((i, 0))
+
+                if not possibles:
+                     action = random.randint(0, 3)
+                else:
+                    # Pick max score
+                    max_score = max(possibles, key=lambda x: x[1])[1]
+                    best_moves = [move for move, score in possibles if score == max_score]
+                    action = random.choice(best_moves)
                     view = obs['view']
                     r, c = obs['agent_pos']
                     
@@ -856,19 +973,76 @@ if agent_type != "Manuell":
             # 2. MODEL-BASED LOGIC
             elif agent_type == "Modell-basiert":
                 # Update Memory from Obs
+                # We need agent_pos for map building. 
+                # In Strict Mode, obs['agent_pos'] is None.
+                # We assume Perfect Odometry for the Model-Based Agent, so we use env.agent_pos 
+                # (which equals internal tracked position in a deterministic world).
+                current_r, current_c = env.agent_pos
+                
                 if obs['mode'] == 'full':
                     # Full Mode: All Grid is known
                     current_memory = {(r,c): obs['grid'][r,c] for r in range(env.height) for c in range(env.width)}
+                    target_pos = obs['goal_pos']
                 else:
-                    # Fog Mode: Update internal memory from view
+                    # Fog/Strict Mode: Update internal memory from view
                     view = obs['view']
                     for pos, val in view.items():
                         if val != -1: # Ignore boundary
                            env.model_memory[pos] = val
                     current_memory = env.model_memory
+                    
+                    # Determine Goal
+                    # 1. Is Goal in Obs? (Radius 1)
+                    if obs['goal_pos']:
+                        target_pos = obs['goal_pos']
+                    else:
+                        # 2. Is Goal in Memory? (Previously seen)
+                        # Scan memory for value 2
+                        target_pos = None
+                        for pos, val in current_memory.items():
+                            if val == 2:
+                                target_pos = pos
+                                break
                 
                 # Plan Step
-                action = get_model_based_action(obs['agent_pos'], obs['goal_pos'], current_memory, env.height, env.width)
+                if target_pos:
+                    # Goal Known -> Plan to Goal
+                    action = get_model_based_action(env.agent_pos, target_pos, current_memory, env.height, env.width)
+                else:
+                    # Goal Unknown -> EXPLORE (Frontier)
+                    # Plan to nearest 'Unknown' (Candidate) or Random?
+                    # get_model_based_action defaults to random if goal not reached.
+                    # We need a "Plan to Unknown" function.
+                    # For simplicity: Random Walk until goal found?
+                    # User requirement: "Model-Based ... Strict Fog: kann erkundete Karte rekonstruieren -> deutlich stabiler als Reflex".
+                    # Random walk is not "deutlich stabiler".
+                    # Frontier Exploration is needed.
+                    # As a simplified proxy: Move to any neighbor that is NOT in memory (Unknown) or visited less?
+                    # Or just Random Walk with Wall Memory (avoid walls).
+                    # Let's use get_model_based_action with goal_pos=None to trigger random/safe walk?
+                    # No, let's implement true exploration later? 
+                    # For now: Random Walk allowing backtracking but avoiding known walls.
+                    # (Simple Model Based)
+                    
+                    # Better: Scan neighbors, prefer unknown.
+                    moves = [(-1,0), (1,0), (0,-1), (0,1)]
+                    candidates = []
+                    for i, (dr, dc) in enumerate(moves):
+                        nr, nc = current_r+dr, current_c+dc
+                        if 0 <= nr < env.height and 0 <= nr < env.width:
+                           val = current_memory.get((nr, nc)) # None if unknown
+                           if val == 1: continue # Wall
+                           # Prefer Unknown (None)
+                           prio = 10 if val is None else 1
+                           candidates.append((i, prio))
+                    
+                    if candidates:
+                        # Weighted random? Or max prio?
+                        max_p = max(c[1] for c in candidates)
+                        best = [c[0] for c in candidates if c[1] == max_p]
+                        action = random.choice(best)
+                    else:
+                        action = random.randint(0, 3)
 
             # 3. Q-LEARNING LOGIC
             elif agent_type == "Q-Learning":
@@ -886,7 +1060,7 @@ if agent_type != "Manuell":
                 next_s, r, done = env.step(action)
                 
                 # Get New Observation for Learning
-                next_obs = env.get_observation(percept_enabled)
+                next_obs = env.get_observation(obs_mode)
                 
                 st.session_state.current_episode['steps'] += 1
                 st.session_state.current_episode['return'] += r
