@@ -340,21 +340,22 @@ percept_enabled = st.sidebar.checkbox("Percept Field (Sichtfeld)", value=True, h
 # NEW: Current Percept Expander
 with st.sidebar.expander("Perception (Current Observation)", expanded=True):
     percepts = st.session_state.env.get_current_percept_text()
-    # Compact 2-Column Layout
-    col1, col2 = st.columns(2)
-    with col1:
-        st.write(f"⬆️ `{percepts['UP']}`")
-        st.write(f"⬅️ `{percepts['LEFT']}`")
-    with col2:
-        st.write(f"⬇️ `{percepts['DOWN']}`")
-        st.write(f"➡️ `{percepts['RIGHT']}`")
     
-    # Didactic Explanation
-    st.caption("EMPTY = keine relevanten Objekte im aktuellen Sichtfeld.")
-    if percept_enabled:
-        st.caption("Perception = lokale Observation (begrenztes Sichtfeld).")
-    else:
-        st.caption("Perception = vollständige Observation des Environment.")
+    # Clean CSS Grid Layout for styling
+    p_up, p_down = percepts['UP'], percepts['DOWN']
+    p_left, p_right = percepts['LEFT'], percepts['RIGHT']
+    
+    st.markdown(f"""
+    <div style="display: grid; grid-template-columns: 40px 1fr; gap: 2px; align-items: center; font-family: monospace; font-size: 0.9em;">
+        <div style="text-align: right;">⬆️</div><div style="color: #eee;">{p_up}</div>
+        <div style="text-align: right;">⬅️</div><div style="color: #eee;">{p_left}</div>
+        <div style="text-align: right;">➡️</div><div style="color: #eee;">{p_right}</div>
+        <div style="text-align: right;">⬇️</div><div style="color: #eee;">{p_down}</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Compact Footnote
+    st.caption("Radius 1. 'EMPTY' = leer.")
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("Umgebungs-Konfiguration")
@@ -510,7 +511,7 @@ zone_env = st.container()
 zone_agent = st.container()
 
 # Zone C: Didactics (Collapsible, reflection)
-zone_didactics = st.expander("🎓 Lernhinweise & Reflexion", expanded=False)
+zone_didactics = st.expander("🎓 Lernhinweise & Reflexion: Warum verhält sich dieser Agent so?", expanded=False)
 
 # Zone D: Actions (Controls)
 zone_actions = st.container()
@@ -518,23 +519,36 @@ zone_actions = st.container()
 
 # 2. FILL ZONE C: DIDACTICS
 with zone_didactics:
+    # Custom CSS for Tags
+    st.markdown("""
+    <style>
+    .agent-tag {
+        background-color: #333;
+        color: #ddd;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 0.8em;
+        margin-right: 5px;
+        border: 1px solid #555;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     if agent_type == "Manuell":
-        st.markdown('<div class="theory-title">MODUS: MANUELLE STEUERUNG</div>', unsafe_allow_html=True)
-        st.write("Du bist der Agent. Das **Percept Field** ist dein Sichtbereich (Radius 1). Außerhalb davon ist alles 'Unobserved' (░).")
+        st.write("Du steuerst den Agenten direkt.")
+        st.markdown('<span class="agent-tag">Policy: human</span> <span class="agent-tag">Memory: none</span> <span class="agent-tag">Planning: none</span>', unsafe_allow_html=True)
+        st.write("---")
         st.write("**Ziel:** Maximiere den Return in 20 Schritten.")
         st.write("**Mini-Task:** Spiele 10 Schritte mit Percept Field ON und 10 Schritte OFF. Was ändert sich an deiner Strategie?")
     elif agent_type == "Reflex-Agent":
-        st.markdown('<div class="theory-title">MODUS: REFLEX-AGENT (Einfach)</div>', unsafe_allow_html=True)
-        st.image(r"https://latex.codecogs.com/png.latex?\color{green}\text{Aktion}(p) = \text{Regel}[\text{Sensor}(p)]")
-        st.write("Dieser Agent reagiert nur auf sein **Percept**. Er hat KEIN Gedächtnis.")
-        st.caption("Basiert auf der **Markov-Annahme**: Die Entscheidung hängt nur vom aktuellen Wahrnehmungs-Zustand ab.")
+        st.write("Dieser Agent reagiert direkt auf das aktuelle Percept (Reiz-Reaktion).")
+        st.markdown('<span class="agent-tag">Policy: reactive</span> <span class="agent-tag">Memory: none</span> <span class="agent-tag">Planning: none</span>', unsafe_allow_html=True)
     elif agent_type == "Modell-basiert":
-        st.markdown('<div class="theory-title">MODUS: MODELL-BASIERTER REFLEX-AGENT</div>', unsafe_allow_html=True)
-        st.write("Dieser Agent speichert beobachtete Felder in einer **Internal Map**. Er erinnert sich an Wände und besuchte Orte, auch wenn sie nicht mehr im Percept sind.")
+        st.write("Dieser Agent nutzt eine interne Karte, um sich an besuchte Orte und Wände zu erinnern.")
+        st.markdown('<span class="agent-tag">Policy: reactive</span> <span class="agent-tag">Memory: internal map</span> <span class="agent-tag">Planning: limited</span>', unsafe_allow_html=True)
     elif agent_type == "Q-Learning":
-        st.markdown('<div class="theory-title">MODUS: Q-LEARNING (Verstärkendes Lernen)</div>', unsafe_allow_html=True)
-        st.write("Der Agent lernt durch **Episoden**. Nutze den 'Train Episodes' Button, um das Lernen zu beschleunigen. Beobachte das Konvergenz-Diagramm unten.")
-        st.caption("Modelliert als **Markov Decision Process (MDP)**. Annahme: Der aktuelle Zustand $s$ (Position) enthält alle nötigen Infos (Markov-Eigenschaft).")
+        st.write("Der Agent lernt durch Belohnung und Bestrafung (Trial & Error).")
+        st.markdown('<span class="agent-tag">Policy: learned</span> <span class="agent-tag">Memory: Q-table</span> <span class="agent-tag">Exploration: ε-greedy</span>', unsafe_allow_html=True)
 
     # Didactic box with live analysis
     st.info(f"""
@@ -542,7 +556,8 @@ with zone_didactics:
         Der Agent versucht, die Summe aus **Schritt-Strafe** ({st.session_state.env.step_penalty}) 
         und **Ziel-Belohnung** ({st.session_state.env.goal_reward}) zu maximieren.
     """)
-    st.info("Reflexionsfrage: Welche Information fehlt dir gerade, um optimal zu handeln?")
+    if not auto_run:
+        st.info("Reflexionsfrage: Welche Information fehlt dir gerade, um optimal zu handeln?")
 
 
 # 3. FILL ZONE A: ENVIRONMENT HEADER
@@ -560,29 +575,31 @@ with zone_env:
 # 4. FILL ZONE B: AGENT METRICS
 with zone_agent:
     curr_ep = st.session_state.current_episode
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Schritte", f"{curr_ep['steps']} / 20")
     
-    c2.metric("Current State", str(st.session_state.env.agent_pos))
+    # Primary Key Metric: Return
+    c_main, c_details = st.columns([1, 3])
+    c_main.metric("Return (Gₜ)", f"{curr_ep['return']:.2f}", help="Gₜ = Summe aller Rewards")
     
-    c3.metric("Immediate Reward (rₜ)", f"{curr_ep.get('last_reward', 0.0):.2f}")
+    # Compact Details Bar
+    last_act = curr_ep.get('last_action', '-')
+    state_str = str(st.session_state.env.agent_pos)
+    last_rew = f"{curr_ep.get('last_reward', 0.0):.2f}"
+    steps_str = f"{curr_ep['steps']} / 20"
     
-    c4.metric("Return (Gₜ)", f"{curr_ep['return']:.2f}", help="Gₜ = cumulative reward (Summe aller bisherigen Rewards)")
-
-    # Second row for details (Visual reduction)
-    cc1, cc2, cc3, cc4 = st.columns(4)
-    with cc1:
-        st.caption("Explorierst du gerade oder exploitierst du?")
-    with cc3:
-        last_act = curr_ep.get('last_action')
-        if last_act:
-            st.caption(f"Last Action: **{last_act}**")
-        st.caption("rₜ = Reward pro Schritt")
-    with cc4:
-        st.caption("Gₜ = Σ r")
-        
-    if curr_ep['steps'] >= 20:
-        st.info("Auswertung: Wie hat Observability deine Strategy beeinflusst?")
+    with c_details:
+        st.markdown(f"""
+        <div style="background-color: #111; padding: 10px; border-radius: 5px; border: 1px solid #333; margin-top: 5px;">
+            <span style="color: #bbb; margin-right: 15px;">Episode Steps: <strong style="color: #fff;">{steps_str}</strong></span>
+            <span style="color: #bbb; margin-right: 15px;">State: <strong style="color: #fff;">{state_str}</strong></span>
+            <span style="color: #bbb; margin-right: 15px;">rₜ: <strong style="color: #fff;">{last_rew}</strong></span>
+            <span style="color: #bbb;">Last Action: <strong style="color: #fff;">{last_act}</strong></span>
+        </div>
+        """, unsafe_allow_html=True)
+    
+        if auto_run:
+            st.caption("Auto mode running — open ‘Lernhinweise’ for analysis.")
+        elif curr_ep['steps'] >= 20:
+            st.info("Auswertung: Wie hat Observability deine Strategy beeinflusst?")
 
 
 # 5. INPUT LOGIC & ACTIONS (Zone D)
