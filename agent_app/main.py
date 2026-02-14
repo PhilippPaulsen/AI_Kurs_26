@@ -621,8 +621,9 @@ def render_grid_html(env, agent_type, percept_enabled, strict_fog=False, q_agent
                     state_key = q_agent.encode_state(syn_obs)
                     q_data[r, c] = q_agent.get_q(state_key)
 
-        # Determine Max for Scaling
-        max_q_val = np.max(q_data) if np.max(q_data) > 0 else 1.0
+        # Determine Max/Min for Scaling
+        g_max = np.max(q_data)
+        g_min = np.min(q_data)
 
     grid_str = ""
     for r in range(env.height):
@@ -639,43 +640,20 @@ def render_grid_html(env, agent_type, percept_enabled, strict_fog=False, q_agent
             if show_q:
                 q_vals = q_data[r, c]
                 best_q = np.max(q_vals)
-                if best_q != 0:
-                    # IMPROVED VISIBILITY LOGIC
-                    # 1. Separate Positive/Negative Scaling
-                    # Goal is huge (100), steps are small (-0.1). 
-                    # We need to make small values visible.
-                    
-                    bg_color = ""
-                    text_color = "black" # Default text
-                    
+                
+                if not np.isclose(best_q, 0.0):
                     if best_q < 0: 
-                         # Negative (Red)
-                         # Scale relative to Wall Penalty (-5) or Step Penalty (-0.1)
-                         # Cap at -5 for visualization to not make everything else invisible?
-                         # Let's use a non-linear scaling: alpha = min(0.8, 0.2 + 0.6 * (val / min_val))
-                         # Assuming worst is around -10 (collision + step)
-                         
-                         ref_val = 5.0 # Reference magnitude for "very bad"
-                         ratio = min(1.0, abs(best_q) / ref_val)
-                         
-                         # Non-linear boost for small negative values (e.g. -0.1)
-                         # sqrt(0.02) = 0.14 -> 14% intensity
-                         vis_ratio = ratio ** 0.5 
-                         
-                         alpha = 0.2 + (vis_ratio * 0.6) # Min 0.2, Max 0.8
+                         # Red Scale (Pastel)
+                         ref = max(abs(g_min), 5.0) 
+                         ratio = min(1.0, abs(best_q) / ref)
+                         alpha = 0.05 + (ratio ** 0.5) * 0.45
                          q_color = f"rgba(255, 0, 0, {alpha:.2f})"
 
                     else: 
-                         # Positive (Green)
-                         # Goal is 100. Path to goal is ~99, 98...
-                         # Far away might be 1.0
-                         # We want to see the gradient towards goal.
-                         
-                         ref_val = max_q_val if max_q_val > 0 else 1.0
-                         ratio = best_q / ref_val
-                         
-                         # Linear is fine for positive as they are usually high near goal
-                         alpha = 0.2 + (ratio * 0.6)
+                         # Green Scale (Pastel)
+                         ref = max(g_max, 1.0)
+                         ratio = min(1.0, best_q / ref)
+                         alpha = 0.05 + (ratio ** 0.5) * 0.45
                          q_color = f"rgba(0, 255, 0, {alpha:.2f})"
 
             # Determine Symbol
@@ -697,13 +675,17 @@ def render_grid_html(env, agent_type, percept_enabled, strict_fog=False, q_agent
                 symbol = "░" 
                 style = "color: #777;" # Brighter Shadow
                 
+                # Apply Heatmap to Fog as well (Projected View)
+                if q_color:
+                     style += f" background-color: {q_color};"
+
                 # Check Memory for Model-Based
                 if agent_type == "Modell-basiert" and pos in env.model_memory:
                     val = env.model_memory[pos]
                     if val == 1: symbol = "▒" # Ghost Wall
                     elif val == 2: symbol = "⚐" # Ghost Goal
                     else: symbol = "&nbsp;" # Empty Known
-                    style = "color: #aaa;" # Dimmed for memory
+                    style += " color: #aaa;" # Dimmed for memory (append)
                     
             # Construct Cell HTML
             if style:
