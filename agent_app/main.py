@@ -350,6 +350,7 @@ with st.sidebar.expander("👁️ Current Percept", expanded=True):
         st.write(f"➡️ `{percepts['RIGHT']}`")
     
     # Didactic Explanation
+    st.caption("EMPTY = keine relevanten Objekte im aktuellen Sichtfeld.")
     if percept_enabled:
         st.caption("Perception = lokale Observation (begrenztes Sichtfeld).")
     else:
@@ -505,6 +506,7 @@ if agent_type == "Manuell":
     st.markdown('<div class="theory-title">MODUS: MANUELLE STEUERUNG</div>', unsafe_allow_html=True)
     st.write("Du bist der Agent. Das **Percept Field** ist dein Sichtbereich (Radius 1). Außerhalb davon ist alles 'Unobserved' (░).")
     st.write("**Ziel:** Maximiere den Return in 20 Schritten.")
+    st.write("**Mini-Task:** Spiele 10 Schritte mit Percept Field ON und 10 Schritte OFF. Was ändert sich an deiner Strategie?")
 elif agent_type == "Reflex-Agent":
     st.markdown('<div class="theory-title">MODUS: REFLEX-AGENT (Einfach)</div>', unsafe_allow_html=True)
     st.image(r"https://latex.codecogs.com/png.latex?\color{green}\text{Aktion}(p) = \text{Regel}[\text{Sensor}(p)]")
@@ -567,7 +569,7 @@ if last_act:
     c3.write(f"**Last Action:** {last_act}")
 c3.caption("Reward = Bewertung der aktuellen Action.")
 
-c4.metric("Return (cumulative reward)", f"{curr_ep['return']:.2f}")
+c4.metric("Return (Gₜ)", f"{curr_ep['return']:.2f}", help="Gₜ = cumulative reward (Summe aller bisherigen Rewards)")
 
 st.caption("State = interne Repräsentation des Agenten (hier: Position im Environment).")
 st.info("Reflexionsfrage: Welche Information fehlt dir gerade, um optimal zu handeln?")
