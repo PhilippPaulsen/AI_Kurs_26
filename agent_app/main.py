@@ -378,31 +378,7 @@ st.session_state.env.step_penalty = env_step_penalty
 st.session_state.env.wall_penalty = env_wall_penalty
 st.session_state.env.goal_reward = env_goal_reward
 
-if st.sidebar.button("Reset Episode (Startpos)"):
-    # Reset Agent Position, Keep Walls, Keep Q-Table
-    env = st.session_state.env
-    env.agent_pos = env.start_pos
-    env.game_over = False
-    env.visited = {env.start_pos}
-    st.session_state.current_episode = {'steps': 0, 'return': 0.0, 'last_reward': 0.0, 'last_action': None}
-    st.rerun()
 
-if st.sidebar.button("Brain Reset (Q-Table löschen)"):
-    # Clear Q-Table, Keep Walls (Allow retraining on same map)
-    st.session_state.q_agent = None
-    st.session_state.training_history = []
-    st.session_state.current_episode = {'steps': 0, 'return': 0.0, 'last_reward': 0.0, 'last_action': None}
-    st.session_state.logs.append("🧠 **Brain Reset:** Alles vergessen!")
-    st.rerun()
-
-if st.sidebar.button("Neues Labyrinth (Full Reset)"):
-    # New Maze, New Q-Table
-    st.session_state.env = Environment(grid_n, grid_n, step_penalty=env_step_penalty, goal_reward=env_goal_reward, wall_penalty=env_wall_penalty)
-    st.session_state.q_agent = None
-    st.session_state.logs = []
-    st.session_state.current_episode = {'steps': 0, 'return': 0.0, 'last_reward': 0.0, 'last_action': None}
-    st.session_state.training_history = []
-    st.rerun()
 
 # Stats Display
 st.sidebar.markdown("---")
@@ -555,7 +531,10 @@ with zone_didactics:
             st.markdown("- Welche Information nutzt du zur Entscheidung?\n- Wie würdest du deine Policy beschreiben?\n- Reagierst du eher lokal oder planst du voraus?")
         
         with st.expander("📐 Theorie (Optional)"):
-            st.markdown("Agent = Perception → Action")
+            st.write("<b>Policy wird vollständig extern (vom Menschen) bestimmt.</b>", unsafe_allow_html=True)
+            st.markdown("- Agent = Perception → Action\n- Kein automatisches Lernen\n- Performance hängt von Strategy ab")
+            st.markdown(r"Notation: $\pi(a|p)$")
+            st.caption("Transferfrage: Wie würdest du deine eigene Policy formalisieren?")
 
     elif agent_type == "Reflex-Agent":
         st.write("Action basiert nur auf aktuellem Percept (keine Memory).")
@@ -566,7 +545,10 @@ with zone_didactics:
             st.markdown("- Warum wiederholt der Agent möglicherweise ineffiziente Bewegungen?\n- Welche Information fehlt ihm?\n- Würde ein internes State-Modell helfen?")
         
         with st.expander("📐 Theorie (Optional)"):
-            st.latex(r"\pi(a|p)")
+            st.write("<b>Action basiert ausschließlich auf aktuellem Percept (kein Memory).</b>", unsafe_allow_html=True)
+            st.markdown("- Markov-Annahme\n- Keine interne State-Erweiterung\n- Problematisch bei Partial Observability")
+            st.markdown(r"Notation: $a = \pi(p)$")
+            st.caption("Transferfrage: Warum kann der Agent ineffiziente Zyklen wiederholen?")
 
     elif agent_type == "Modell-basiert":
         st.write("Interner State speichert vergangene Information.")
@@ -577,7 +559,10 @@ with zone_didactics:
             st.markdown("- Welche Information speichert der Agent?\n- Wann ist Model-Based besser als Reflex?\n- Ist der Agent jetzt optimal oder nur informierter?")
             
         with st.expander("📐 Theorie (Optional)"):
+            st.write("<b>Interner State erweitert die Information über das aktuelle Percept hinaus.</b>", unsafe_allow_html=True)
+            st.markdown("- State ≠ Perception\n- Gedächtnis kompensiert Informationslücken\n- Besser bei Partial Observability")
             st.latex(r"State_t = f(State_{t-1}, Percept_t)")
+            st.caption("Transferfrage: Welche Information speichert der Agent zusätzlich?")
 
     elif agent_type == "Q-Learning":
         st.write("Policy wird durch Reward-Lernen angepasst.")
@@ -588,16 +573,26 @@ with zone_didactics:
             st.markdown("- Wie beeinflusst ε das Verhalten?\n- Warum steigt der Return mit Training?\n- Was bedeutet Konvergenz?")
 
         with st.expander("📐 Theorie (Optional)"):
+            st.write("<b>Policy wird durch iteratives Reward-Lernen optimiert.</b>", unsafe_allow_html=True)
+            st.markdown("- Exploration vs. Exploitation\n- Value-basierte Entscheidung\n- Konvergenz bei ausreichend Training")
             st.latex(r"Q(s,a) \leftarrow r + \gamma \max Q(s',a')")
+            st.caption("Transferfrage: Wie beeinflusst ε die Balance zwischen Exploration und Exploitation?")
 
     # Didactic box with live analysis
-    st.info(f"""
-        **🔍 Live-Analyse:**
-        Der Agent versucht, die Summe aus **Schritt-Strafe** ({st.session_state.env.step_penalty}) 
-        und **Ziel-Belohnung** ({st.session_state.env.goal_reward}) zu maximieren.
-    """)
+    analysis_text = ""
+    if agent_type == "Manual":
+        analysis_text = "Du entscheidest selbst. Deine Strategie bestimmt den Erfolg."
+    elif agent_type == "Reflex-Agent":
+        analysis_text = "Der Agent reagiert blind auf das aktuelle Feld. Ohne Gedächtnis tappt er in Fallen."
+    elif agent_type == "Modell-basiert":
+        analysis_text = "Die interne Karte wächst mit jedem Schritt. Der Agent plant aber nicht weit voraus."
+    elif agent_type == "Q-Learning":
+        analysis_text = f"Der Agent aktualisiert Q(s,a) basierend auf Reward ({st.session_state.env.step_penalty}) und Zukunftserwartung (γ={gamma})."
+    
+    st.info(f"**🔍 Live-Analyse:** {analysis_text}")
+
     if not auto_run:
-        st.info("Reflexionsfrage: Welche Information fehlt dir gerade, um optimal zu handeln?")
+        st.caption("Reflexionsfrage: Welche Information fehlt dir gerade, um optimal zu handeln?")
 
 
 # 3. FILL ZONE A: ENVIRONMENT HEADER
@@ -640,6 +635,53 @@ with zone_agent:
             st.caption("Auto mode running — open ‘Lernhinweise’ for analysis.")
         elif curr_ep['steps'] >= 20:
             st.info("🏁 **Phase Complete:** War dieser Agent effizienter als der vorherige? Warum?")
+
+    # --- RESET BUTTON BAR (Zone B Bottom) ---
+    st.markdown("---")
+    # State for confirmations
+    if 'confirm_reset' not in st.session_state: st.session_state.confirm_reset = False
+    if 'confirm_new_maze' not in st.session_state: st.session_state.confirm_new_maze = False
+
+    b_col1, b_col2, b_col3 = st.columns(3)
+    
+    # 1. Reset Episode
+    if b_col1.button("🔄 Reset Episode", help="Setzt Agenten auf Start zurück. Q-Table bleibt."):
+        env.reset_agent()
+        st.session_state.current_episode = {'steps': 0, 'return': 0.0, 'last_reward': 0.0, 'last_action': None}
+        st.rerun()
+
+    # 2. Brain Reset (Confirm)
+    with b_col2:
+        if not st.session_state.confirm_reset:
+            if st.button("🧠 Brain Reset"):
+                st.session_state.confirm_reset = True
+                st.rerun()
+        else:
+            if st.button("⚠️ Wirklich löschen?", type="primary"):
+                st.session_state.q_agent = None
+                st.session_state.training_history = []
+                st.session_state.current_episode = {'steps': 0, 'return': 0.0, 'last_reward': 0.0, 'last_action': None}
+                st.session_state.confirm_reset = False
+                st.rerun()
+            st.caption("Klicke zum Bestätigen.")
+
+    # 3. New Maze (Confirm)
+    with b_col3:
+        if not st.session_state.confirm_new_maze:
+            if st.button("🎲 Neues Labyrinth"):
+                st.session_state.confirm_new_maze = True
+                st.rerun()
+        else:
+            if st.button("⚠️ Wirklich neu?", type="primary"):
+                st.session_state.env = Environment(10, 10, step_penalty=env_step_penalty, goal_reward=env_goal_reward, wall_penalty=env_wall_penalty) # Re-init
+                # Reset logic
+                env = st.session_state.env # Update ref
+                st.session_state.q_agent = None
+                st.session_state.training_history = []
+                st.session_state.current_episode = {'steps': 0, 'return': 0.0, 'last_reward': 0.0, 'last_action': None}
+                st.session_state.confirm_new_maze = False
+                st.rerun()
+            st.caption("Klicke zum Bestätigen.")
 
 
 # 5. INPUT LOGIC & ACTIONS (Zone D)
