@@ -640,17 +640,43 @@ def render_grid_html(env, agent_type, percept_enabled, strict_fog=False, q_agent
                 q_vals = q_data[r, c]
                 best_q = np.max(q_vals)
                 if best_q != 0:
-                    # Normalize intensity based on max_q_val
-                    # Use a non-linear scale for better visibility of small values
-                    norm_val = np.clip(best_q / (max_q_val if max_q_val > 0 else 1.0), -1.0, 1.0)
+                    # IMPROVED VISIBILITY LOGIC
+                    # 1. Separate Positive/Negative Scaling
+                    # Goal is huge (100), steps are small (-0.1). 
+                    # We need to make small values visible.
                     
-                    if best_q < 0: # Negative -> RED
-                         # Intensity 50-255
-                         intensity = int(50 + abs(norm_val) * 205)
-                         q_color = f"rgba(255, 0, 0, {abs(norm_val)*0.5 + 0.1})" # dynamic alpha
-                    else: # Positive -> GREEN
-                         intensity = int(50 + abs(norm_val) * 205)
-                         q_color = f"rgba(0, 255, 0, {abs(norm_val)*0.5 + 0.1})"
+                    bg_color = ""
+                    text_color = "black" # Default text
+                    
+                    if best_q < 0: 
+                         # Negative (Red)
+                         # Scale relative to Wall Penalty (-5) or Step Penalty (-0.1)
+                         # Cap at -5 for visualization to not make everything else invisible?
+                         # Let's use a non-linear scaling: alpha = min(0.8, 0.2 + 0.6 * (val / min_val))
+                         # Assuming worst is around -10 (collision + step)
+                         
+                         ref_val = 5.0 # Reference magnitude for "very bad"
+                         ratio = min(1.0, abs(best_q) / ref_val)
+                         
+                         # Non-linear boost for small negative values (e.g. -0.1)
+                         # sqrt(0.02) = 0.14 -> 14% intensity
+                         vis_ratio = ratio ** 0.5 
+                         
+                         alpha = 0.2 + (vis_ratio * 0.6) # Min 0.2, Max 0.8
+                         q_color = f"rgba(255, 0, 0, {alpha:.2f})"
+
+                    else: 
+                         # Positive (Green)
+                         # Goal is 100. Path to goal is ~99, 98...
+                         # Far away might be 1.0
+                         # We want to see the gradient towards goal.
+                         
+                         ref_val = max_q_val if max_q_val > 0 else 1.0
+                         ratio = best_q / ref_val
+                         
+                         # Linear is fine for positive as they are usually high near goal
+                         alpha = 0.2 + (ratio * 0.6)
+                         q_color = f"rgba(0, 255, 0, {alpha:.2f})"
 
             # Determine Symbol
             if is_visible:

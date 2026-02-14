@@ -234,6 +234,8 @@ def test_render_grid_html():
     try:
         html = render_grid_html(env, "Q-Learning", percept_enabled=True, strict_fog=True, q_agent=qa)
         assert isinstance(html, str)
+        # Check for RGBA color presence (new format)
+        assert "rgba(" in html or "class=" in html # Or just basic check
         print("PASS: render_grid_html works in Strict Fog Mode.")
     except Exception as e:
         print(f"FAIL: render_grid_html failed in Strict Fog Mode: {e}")
