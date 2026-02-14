@@ -698,60 +698,90 @@ with zone_didactics:
         st.markdown('<span class="agent-tag">Policy: human</span> <span class="agent-tag">Memory: none</span> <span class="agent-tag">Planning: none</span>', unsafe_allow_html=True)
         st.write("---")
         st.markdown("**🎯 Lernfokus:** Wie beeinflusst deine eigene Strategy den Return?")
-        with st.expander("🤔 Reflexionsfragen"):
-            st.markdown("- Welche Information nutzt du zur Entscheidung?\n- Wie würdest du deine Policy beschreiben?\n- Reagierst du eher lokal oder planst du voraus?")
-        
+        st.write("**Frage:** Welche Information nutzt du zur Entscheidung?")
+        with st.expander("Antwortvorschlag anzeigen"):
+            st.markdown("- Percept (Sichtfeld)\n- Ziel-Position\n- Hindernisse")
+
+        st.write("**Frage:** Wie würdest du deine Policy beschreiben?")
+        with st.expander("Antwortvorschlag anzeigen"):
+            st.markdown("- Wenn-Dann-Regeln\n- Heuristik (z.B. immer Richtung Ziel)")
+
         with st.expander("📐 Theorie (Optional)"):
             st.write("<b>Policy wird vollständig extern (vom Menschen) bestimmt.</b>", unsafe_allow_html=True)
             st.markdown("- Agent = Perception → Action<br>- Kein automatisches Lernen", unsafe_allow_html=True)
             st.markdown(r"**Notation:** `π(a|p)`")
-            st.markdown("- `π`: Policy (Entscheidungsregel)<br>- `a`: Action<br>- `p`: Percept (Beobachtung)", unsafe_allow_html=True)
-            st.caption("Transferfrage: Wie würdest du deine eigene Policy formalisieren?")
+            st.markdown("""
+            - `π`: Policy (Entscheidungsregel)
+            - `a`: Action
+            - `p`: Percept (Beobachtung)
+            """)
+            st.caption("Transferfrage: Welche Variable siehst du links im UI unter 'Percept Field'?")
 
     elif agent_type == "Reflex-Agent":
         st.write("Action basiert nur auf aktuellem Percept (keine Memory).")
         st.markdown('<span class="agent-tag">Policy: reactive</span> <span class="agent-tag">Memory: none</span> <span class="agent-tag">Planning: none</span>', unsafe_allow_html=True)
         st.write("---")
         st.markdown("**🎯 Lernfokus:** Was passiert bei Partial Observability ohne Gedächtnis?")
-        with st.expander("🤔 Reflexionsfragen"):
-            st.markdown("- Warum wiederholt der Agent möglicherweise ineffiziente Bewegungen?\n- Welche Information fehlt ihm?\n- Würde ein internes State-Modell helfen?")
-        
+        st.write("**Frage:** Warum wiederholt der Agent möglicherweise ineffiziente Bewegungen?")
+        with st.expander("Antwortvorschlag anzeigen"):
+            st.markdown("- Agent sieht Sackgasse nicht (lokales Minimum)\n- Pendelt zwischen zwei Zuständen\n- Ihm fehlt die Historie")
+
         with st.expander("📐 Theorie (Optional)"):
             st.write("<b>Action basiert ausschließlich auf aktuellem Percept.</b>", unsafe_allow_html=True)
             st.markdown("- Keine Abhängigkeit von State<br>- Annahme: Markov Property", unsafe_allow_html=True)
             st.markdown(r"**Notation:** `a = π(p)`")
-            st.markdown("- `p`: Aktuelles Percept<br>- `a`: Daraus abgeleitete Action", unsafe_allow_html=True)
-            st.caption("Transferfrage: Warum kann der Agent ineffiziente Zyklen wiederholen?")
+            st.markdown("""
+            - `p`: Aktuelles Percept
+            - `a`: Daraus abgeleitete Action
+            """)
+            st.caption("Transferfrage: Siehst du im 'Percept Field', warum er hin- und herläuft?")
 
     elif agent_type == "Modell-basiert":
         st.write("Interner State speichert vergangene Information.")
         st.markdown('<span class="agent-tag">Policy: reactive</span> <span class="agent-tag">Memory: internal map</span> <span class="agent-tag">Planning: limited</span>', unsafe_allow_html=True)
         st.write("---")
         st.markdown("**🎯 Lernfokus:** Wie kompensiert internes Gedächtnis fehlende Observation?")
-        with st.expander("🤔 Reflexionsfragen"):
-            st.markdown("- Welche Information speichert der Agent?\n- Wann ist Model-Based besser als Reflex?\n- Ist der Agent jetzt optimal oder nur informierter?")
-            
+        st.write("**Frage:** Welche Information speichert der Agent?")
+        with st.expander("Antwortvorschlag anzeigen"):
+             st.markdown("- Besuchte Felder (Grid-Map)\n- Position von Wänden\n- Ziel-Position (sobald entdeckt)")
+             
         with st.expander("📐 Theorie (Optional)"):
             st.write("<b>Interner State erweitert die Information.</b>", unsafe_allow_html=True)
             st.markdown("- Entscheidung basiert auf State, nicht nur Perception<br>- Gedächtnis kompensiert Lücken", unsafe_allow_html=True)
             st.markdown(r"**Notation:** `Stateₜ = f(Stateₜ₋₁, Perceptₜ)`")
-            st.markdown("- `Stateₜ`: Interner Zustand (t)<br>- `Perceptₜ`: Aktuelle Beobachtung<br>- `f`: Update-Funktion", unsafe_allow_html=True)
-            st.caption("Transferfrage: Welche Information speichert der Agent zusätzlich?")
+            st.markdown("""
+            - `Stateₜ`: Interner Zustand (t)
+            - `Stateₜ₋₁`: Vorheriger Zustand
+            - `Perceptₜ`: Aktuelle Beobachtung
+            - `f`: Update-Funktion (Mapping)
+            """)
+            st.caption("Transferfrage: Wo siehst du den `State` im Grid visualisiert (Tipp: 'Memory')?")
 
     elif agent_type == "Q-Learning":
         st.write("Policy wird durch Reward-Lernen angepasst.")
         st.markdown('<span class="agent-tag">Policy: learned</span> <span class="agent-tag">Memory: Q-table</span> <span class="agent-tag">Exploration: ε-greedy</span>', unsafe_allow_html=True)
         st.write("---")
         st.markdown("**🎯 Lernfokus:** Exploration vs. Exploitation.")
-        with st.expander("🤔 Reflexionsfragen"):
-            st.markdown("- Wie beeinflusst ε das Verhalten?\n- Warum steigt der Return mit Training?\n- Was bedeutet Konvergenz?")
+        st.write("**Frage:** Wie beeinflusst ε das Verhalten?")
+        with st.expander("Antwortvorschlag anzeigen"):
+             st.markdown("- Höheres ε → mehr Exploration (Zufall)\n- Niedrigeres ε → mehr Exploitation (Gier)\n- Zu hohes ε verhindert Konvergenz")
+
+        st.write("**Frage:** Warum steigt der Return mit Training?")
+        with st.expander("Antwortvorschlag anzeigen"):
+             st.markdown("- Q-Werte approximieren optimale Action-Werte\n- Agent vermeidet negative Rewards (Kosten, Wände)")
 
         with st.expander("📐 Theorie (Optional)"):
             st.write("<b>Policy wird durch Value-Approximation gelernt.</b>", unsafe_allow_html=True)
             st.markdown("- Ziel: Optimale Policy π* finden<br>- Basiert auf Reward-Feedback", unsafe_allow_html=True)
             st.latex(r"Q(s,a) \leftarrow r + \gamma \max_{a'} Q(s',a')")
-            st.markdown("- `s`: State, `a`: Action, `r`: Reward<br>- `γ`: Discount-Faktor, `s'`: Next State<br>- `max Q`: Erwarteter zukünftiger Wert", unsafe_allow_html=True)
-            st.caption("Transferfrage: Wie beeinflusst ε die Balance zwischen Exploration und Exploitation?")
+            st.markdown("""
+            - `Q(s,a)`: Wert der Action a im State s
+            - `r`: Immediate Reward
+            - `γ`: Discount-Faktor (Gewichtung Zukunft)
+            - `s'`: Nächster State
+            - `max Q`: Beste erwartete zukünftige Bewertung
+            """)
+            st.caption("Transferfrage: Welche dieser Variablen (`r`, `s`) siehst du direkt in der Status-Zeile?")
 
     # Didactic box with live analysis
     analysis_text = ""
