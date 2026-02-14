@@ -141,6 +141,13 @@ class Environment:
         # Model-Based Memory (Internal Map: 0=Unknown, 1=Wall, 2=Empty/Goal)
         self.memory_map = {} 
 
+    def reset_agent(self):
+        # Reset only agent state, keep environment (walls)
+        self.agent_pos = self.start_pos
+        self.visited = {self.start_pos}
+        self.game_over = False
+        self.memory_map = {} 
+
     def step(self, action):
         if self.game_over: return self.agent_pos, 0, True
         
