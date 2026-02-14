@@ -1251,8 +1251,12 @@ if agent_type == "Q-Learning" and st.session_state.training_history:
 # Q-Value Heatmap (Subtitle)
 if agent_type == "Q-Learning" and st.session_state.q_agent:
     st.write("### Wissens-Karte (Max Q-Wert)")
-    q_grid = np.max(st.session_state.q_agent.q, axis=2)
-    st.dataframe(pd.DataFrame(q_grid).style.background_gradient(cmap="Greens", axis=None))
+    if percept_enabled:
+         st.info("⚠️ Im Fog-Modus existiert keine globale Wissenskarte. Der Agent lernt lokale Zustände (z.B. 'Wand links').")
+    else:
+        # Full Obs -> q_full matrix exists
+        q_grid = np.max(st.session_state.q_agent.q_full, axis=2)
+        st.dataframe(pd.DataFrame(q_grid).style.background_gradient(cmap="Greens", axis=None))
 
 # --- 7. LOGS ---
 st.markdown("---")

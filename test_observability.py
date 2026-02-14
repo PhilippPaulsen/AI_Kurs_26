@@ -155,9 +155,20 @@ def test_q_agent_act_obs():
     except Exception as e:
         print(f"FAIL: Q-Agent failed with Fog Obs: {e}")
 
+def test_heatmap_attributes():
+    print("\n--- Test Heatmap Attributes ---")
+    env = Environment(10, 10)
+    qa = QAgent(env, 0.5, 0.9, 0.1)
+    
+    if hasattr(qa, 'q_full'):
+         print("PASS: Q-Agent has q_full attribute for heatmap.")
+    else:
+         print("FAIL: Q-Agent missing q_full.")
+
 if __name__ == "__main__":
     test_environment_randomization()
     test_get_observation()
     test_q_agent_splitting()
     test_model_based_planner()
     test_q_agent_act_obs()
+    test_heatmap_attributes()
