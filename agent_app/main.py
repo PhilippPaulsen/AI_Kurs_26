@@ -507,10 +507,6 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("Simulations-Steuerung")
 auto_run = st.sidebar.checkbox("Auto-Lauf (Simulation)", value=False)
 speed = st.sidebar.slider("Geschwindigkeit (Wartezeit in s)", 0.0, 1.0, 0.2)
-st.sidebar.markdown("---")
-st.sidebar.subheader("Simulations-Steuerung")
-auto_run = st.sidebar.checkbox("Auto-Lauf (Simulation)", value=False)
-speed = st.sidebar.slider("Geschwindigkeit (Wartezeit in s)", 0.0, 1.0, 0.2)
 
 # Observability Selection
 obs_mode_label = st.sidebar.selectbox(
