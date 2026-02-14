@@ -38,7 +38,7 @@ for node in classes:
     exec(compile(ast.Module(body=[node], type_ignores=[]), filename="<ast>", mode="exec"))
 
 # Also helper functions?
-funcs = [node for node in tree.body if isinstance(node, ast.FunctionDef) if node.name in ['get_model_based_action']]
+funcs = [node for node in tree.body if isinstance(node, ast.FunctionDef) if node.name in ['get_model_based_action', 'render_grid_html']]
 for node in funcs:
     exec(compile(ast.Module(body=[node], type_ignores=[]), filename="<ast>", mode="exec"))
 
@@ -208,6 +208,28 @@ def test_fog_heatmap_projection():
     except Exception as e:
         print(f"FAIL: Fog Heatmap projection failed: {e}")
 
+def test_render_grid_html():
+    print("\n--- Test render_grid_html ---")
+    env = Environment(10, 10)
+    qa = QAgent(env, 0.5, 0.9, 0.1)
+    
+    # Test Fog Mode Render
+    try:
+        html = render_grid_html(env, "Q-Learning", percept_enabled=True, q_agent=qa)
+        assert isinstance(html, str)
+        assert len(html) > 0
+        print("PASS: render_grid_html works in Fog Mode.")
+    except Exception as e:
+        print(f"FAIL: render_grid_html failed in Fog Mode: {e}")
+
+    # Test Full Mode Render
+    try:
+        html = render_grid_html(env, "Q-Learning", percept_enabled=False, q_agent=qa)
+        assert isinstance(html, str)
+        print("PASS: render_grid_html works in Full Mode.")
+    except Exception as e:
+        print(f"FAIL: render_grid_html failed in Full Mode: {e}")
+
 if __name__ == "__main__":
     test_environment_randomization()
     test_get_observation()
@@ -216,3 +238,4 @@ if __name__ == "__main__":
     test_q_agent_act_obs()
     test_heatmap_attributes()
     test_fog_heatmap_projection()
+    test_render_grid_html()

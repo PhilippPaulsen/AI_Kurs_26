@@ -572,13 +572,45 @@ def render_grid_html(env, agent_type, percept_enabled, q_agent=None):
     visible_mask = env.get_percept_view(radius=1) if percept_enabled else {(r,c) for r in range(env.height) for c in range(env.width)}
     
     # Helper to get Q-Values for visualization
-    # Only show in Full Mode or if we want to debug. 
-    # Logic: If Full Mode, show q_full. If Fog, don't show Q-Values on grid (too complex state).
-    show_q = (q_agent is not None) and (not percept_enabled)
+    # SHOW Q IN BOTH MODES NOW (Projected for Fog)
+    show_q = (q_agent is not None)
     
+    q_data = None
     max_q_val = 1.0
+
     if show_q:
-        max_q_val = np.max(q_agent.q_full) if np.max(q_agent.q_full) > 0 else 1.0
+        if not percept_enabled:
+            # Full Mode: Direct Access
+            q_data = q_agent.q_full
+        else:
+            # Fog Mode: Projection (Synthesize View)
+            q_data = np.zeros((env.height, env.width, 4))
+            for r in range(env.height):
+                for c in range(env.width):
+                    # Synthesize View
+                    syn_view = {}
+                    radius = 1
+                    for i in range(-radius, radius+1):
+                        for j in range(-radius, radius+1):
+                            if abs(i) + abs(j) <= radius:
+                                nr, nc = r+i, c+j
+                                val = -1
+                                if 0 <= nr < env.height and 0 <= nc < env.width:
+                                    val = env.grid[nr, nc]
+                                syn_view[(nr, nc)] = val
+                    
+                    syn_obs = {
+                        'mode': 'fog',
+                        'agent_pos': (r, c),
+                        'goal_pos': env.goal_pos,
+                        'view': syn_view,
+                        'is_game_over': False
+                    }
+                    state_key = q_agent.encode_state(syn_obs)
+                    q_data[r, c] = q_agent.get_q(state_key)
+
+        # Determine Max for Scaling
+        max_q_val = np.max(q_data) if np.max(q_data) > 0 else 1.0
 
     grid_str = ""
     for r in range(env.height):
@@ -593,7 +625,7 @@ def render_grid_html(env, agent_type, percept_enabled, q_agent=None):
             
             q_color = None
             if show_q:
-                q_vals = q_agent.q_full[r, c]
+                q_vals = q_data[r, c]
                 best_q = np.max(q_vals)
                 if best_q != 0:
                     intensity = int(min(255, max(50, (abs(best_q) / max_q_val) * 200))) 
