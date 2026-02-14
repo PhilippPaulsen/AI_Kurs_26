@@ -130,26 +130,39 @@ def test_q_agent_splitting():
 
 def test_model_based_planner():
     print("\n--- Test Model Based Planner ---")
-    grid_mem = {}
-    # Simple corridor: S(0,0) -> (0,1) -> G(0,2)
-    # Walls at (1,0), (1,1), (1,2)
-    start = (0,0)
-    goal = (0,2)
+    env = Environment(3, 3)
+    env.agent_pos = (0,0)
+    env.goal_pos = (0,2)
+    grid_mem = {(0,0): 0, (0,1): 0, (0,2): 2, (1,1): 1}
     
-    # Known free
-    grid_mem[(0,0)] = 2 # Start is empty/visited
-    # Unknown (0,1) assumed free
-    # Known Wall (1,1)
-    grid_mem[(1,1)] = 1
+    # New Signature: get_model_based_action(env, current_memory, target_pos, last_action=None)
+    action = get_model_based_action(env, grid_mem, (0,2))
     
-    action = get_model_based_action(start, goal, grid_mem, 3, 3)
-    
-    # Should move Right (3) towards (0,1)
-    # 0=Up, 1=Down, 2=Left, 3=Right
+    # Should move Right (3) towards (0,2)
     if action == 3:
         print("PASS: Planner chose RIGHT towards goal.")
     else:
         print(f"FAIL: Planner chose {action} instead of 3 (Right).")
+
+def test_model_based_loop_escape():
+    print("\n--- Test Model Based Loop Escape ---")
+    env = Environment(5, 5)
+    env.agent_pos = (2,2)
+    # Simulate a loop: (2,2) and (2,1) visited
+    env.agent_history = [(2,1), (2,2), (2,1), (2,2)] 
+    env.visit_counts = {(2,2): 2, (2,1): 2, (2,3): 0}
+    
+    # Block up/down
+    grid_mem = {(1,2): 1, (3,2): 1, (2,1): 0, (2,3): 0}
+    
+    # If stuck, it should prefer (2,3) because visit_count is 0
+    # Last action: moved Right (3) from (2,1) to (2,2)
+    action = get_model_based_action(env, grid_mem, target_pos=None, last_action=3)
+    
+    if action == 3:
+        print("PASS: Agent continued Right to avoid visited cell Left.")
+    else:
+        print(f"FAIL: Agent chose {action} (Stuck logic failed or visit penalty too low).")
 
 def test_q_agent_act_obs():
     print("\n--- Test Q-Agent Act with Obs ---")
@@ -284,21 +297,10 @@ def test_strict_fog_behavior():
 
 if __name__ == "__main__":
     test_environment_randomization()
-    # test_observability() # Removed
     test_get_observation()
     test_q_agent_splitting()
     test_model_based_planner()
-    test_q_agent_act_obs()
-    test_heatmap_attributes()
-    test_fog_heatmap_projection()
-    test_render_grid_html()
-    test_strict_fog_behavior()
-
-if __name__ == "__main__":
-    test_environment_randomization()
-    test_get_observation()
-    test_q_agent_splitting()
-    test_model_based_planner()
+    test_model_based_loop_escape()
     test_q_agent_act_obs()
     test_heatmap_attributes()
     test_fog_heatmap_projection()

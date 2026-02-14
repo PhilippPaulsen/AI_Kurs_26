@@ -130,6 +130,7 @@ class Environment:
         self.step_penalty = step_penalty
         self.goal_reward = goal_reward
         self.wall_penalty = wall_penalty
+        self.history_length = 20 # Track last N positions
         self.reset()
     
     def reset(self):
@@ -164,6 +165,10 @@ class Environment:
         
         # Model-Based Memory (Internal Map: 0=Unknown, 1=Wall, 2=Empty/Goal)
         self.model_memory = {} 
+        
+        # Tracking for Stuck/Loop Detection
+        self.visit_counts = {}
+        self.agent_history = [] 
 
     def reset_agent(self):
         # Reset only agent state, keep environment (walls)
@@ -171,6 +176,8 @@ class Environment:
         self.visited = {self.start_pos}
         self.game_over = False
         self.model_memory = {} 
+        self.visit_counts = {}
+        self.agent_history = [] 
 
     def step(self, action):
         if self.game_over: return self.agent_pos, 0, True
@@ -190,6 +197,12 @@ class Environment:
                 self.agent_pos = (nr, nc)
                 self.visited.add(self.agent_pos)
                 
+                # Update Loop Detection State
+                self.visit_counts[self.agent_pos] = self.visit_counts.get(self.agent_pos, 0) + 1
+                self.agent_history.append(self.agent_pos)
+                if len(self.agent_history) > self.history_length:
+                    self.agent_history.pop(0)
+
                 # Check Goal
                 if cell == 2:
                     self.game_over = True
@@ -428,6 +441,26 @@ if grid_n != st.session_state.env.width:
 agent_type = st.sidebar.selectbox("Agenten Intelligenz", ["Manuell", "Reflex-Agent", "Modell-basiert", "Q-Learning"])
 st.session_state.agent_str = agent_type
 
+# Observability Selection (MOVED UP to prevent NameError)
+obs_mode_label = st.sidebar.selectbox(
+    "👁️ Observability Mode",
+    ["Full Observability (God Mode)", "Percept Radius 1 (Partial)", "Strict Fog (POMDP)"],
+    index=1, # Default to Fog
+    help="Full: Alles sichtbar. Percept: Nur Radius 1 + Position. Strict: Nur Radius 1 (Blind)."
+)
+
+# Map label to internal mode string
+if "Full" in obs_mode_label:
+    obs_mode = "full"
+elif "Percept" in obs_mode_label:
+    obs_mode = "fog"
+else:
+    obs_mode = "strict"
+
+# Legacy variables wrapper (for rendering etc)
+percept_enabled = (obs_mode != "full")
+strict_fog = (obs_mode == "strict")
+
 # Progression Display
 st.sidebar.caption("Entwicklungsstufe:")
 if agent_type == "Reflex-Agent":
@@ -508,25 +541,6 @@ st.sidebar.subheader("Simulations-Steuerung")
 auto_run = st.sidebar.checkbox("Auto-Lauf (Simulation)", value=False)
 speed = st.sidebar.slider("Geschwindigkeit (Wartezeit in s)", 0.0, 1.0, 0.2)
 
-# Observability Selection
-obs_mode_label = st.sidebar.selectbox(
-    "👁️ Observability Mode",
-    ["Full Observability (God Mode)", "Percept Radius 1 (Partial)", "Strict Fog (POMDP)"],
-    index=1, # Default to Fog
-    help="Full: Alles sichtbar. Percept: Nur Radius 1 + Position. Strict: Nur Radius 1 (Blind)."
-)
-
-# Map label to internal mode string
-if "Full" in obs_mode_label:
-    obs_mode = "full"
-elif "Percept" in obs_mode_label:
-    obs_mode = "fog"
-else:
-    obs_mode = "strict"
-
-# Legacy variables wrapper (for rendering etc)
-percept_enabled = (obs_mode != "full")
-strict_fog = (obs_mode == "strict")
 
 
 
@@ -573,35 +587,63 @@ with st.sidebar.expander("📊 Leistungs-Statistik", expanded=False):
 
 # --- 5. HELPER FUNCTIONS ---
 
-def get_model_based_action(start_pos, goal_pos, grid_memory, height, width):
+def get_model_based_action(env, current_memory, target_pos, last_action=None):
     """
-    Simpler BFS-Planer auf dem bekannten Grid (Memory).
-    Unbekannte Felder werden als FREI (0) angenommen (Optimistic).
+    Lokale Entscheidungslogik (Priority-Based) statt globalem BFS.
+    Kombiniert Ziel-Heuristik mit Visit-Penalty zur Loop-Vermeidung.
     """
-    queue = [(start_pos, [])] # (current_pos, path_of_actions)
-    visited = {start_pos}
+    r, c = env.agent_pos
+    moves = [(-1,0), (1,0), (0,-1), (0,1)] # 0=Up, 1=Down, 2=Left, 3=Right
+    reverse_map = {0: 1, 1: 0, 2: 3, 3: 2}
     
-    # Directions: 0=Up, 1=Down, 2=Left, 3=Right
-    moves = [(-1,0,0), (1,0,1), (0,-1,2), (0,1,3)]
-    
-    while queue:
-        (r, c), path = queue.pop(0)
+    # 1. Loop-Erkennung (Stuck Detection)
+    # Wenn die aktuelle Position in der History mehrfach vorkommt -> Impulse.
+    history = getattr(env, 'agent_history', [])
+    occurrences = history.count((r, c))
+    is_stuck = (occurrences >= 2) 
+
+    scores = []
+    for i, (dr, dc) in enumerate(moves):
+        nr, nc = r + dr, c + dc
         
-        if (r, c) == goal_pos:
-            return path[0] if path else random.randint(0, 3)
+        # Check Wand-Memory & Grenzen
+        is_wall = current_memory.get((nr, nc), 0) == 1
+        if is_wall or not (0 <= nr < env.height and 0 <= nc < env.width):
+            scores.append(-999999) # Unmöglich
+            continue
             
-        for dr, dc, act in moves:
-            nr, nc = r+dr, c+dc
-            if 0 <= nr < height and 0 <= nc < width:
-                # Check Memory: 1=Wall. 0 or not in memory = Free (Optimistic)
-                is_wall = grid_memory.get((nr, nc), 0) == 1
-                
-                if not is_wall and (nr, nc) not in visited:
-                    visited.add((nr, nc))
-                    queue.append(((nr, nc), path + [act]))
-    
-    # No path found? Random walk.
-    return random.randint(0, 3)
+        # A) Ziel-Heuristik (Manhattan)
+        h_score = 0
+        if target_pos:
+            tr, tc = target_pos
+            # Wenn Bewegung zum Ziel führt -> Bonus
+            dist_before = abs(r - tr) + abs(c - tc)
+            dist_after = abs(nr - tr) + abs(nc - tc)
+            if dist_after < dist_before: h_score = 10
+            elif dist_after > dist_before: h_score = -5
+            
+        # B) Visit-Penalty (Novelty)
+        # Bevorzuge selten besuchte Felder
+        v_count = env.visit_counts.get((nr, nc), 0)
+        v_penalty = v_count * 5 # Gewichtete Strafe für besuchte Felder
+        
+        # C) Anti-Oszillation
+        reversal_penalty = 0
+        if last_action is not None and i == reverse_map.get(last_action):
+            reversal_penalty = 15 # Starke Strafe für direkte Umkehr
+            
+        # D) Stuck-Modus: Ignoriere Ziel, suche maximales Neuland
+        if is_stuck:
+            # Maximale Priorität auf Felder mit 0 oder niedrigsten Visits
+            # Höhere Strafe für visits um den Agenten zu zwingen wegzulaufen
+            score = - (v_count * 50) - (random.random() * 2)
+        else:
+            # Normale Heuristik
+            score = h_score - v_penalty - reversal_penalty + random.uniform(0, 0.5)
+            
+        scores.append(score)
+        
+    return int(np.argmax(scores))
 
 def render_grid_html(env, agent_type, percept_enabled, strict_fog=False, q_agent=None):
     # Radius 1 for Percept
@@ -931,79 +973,29 @@ if agent_type != "Manuell":
                     best_moves = [move for move, score in possibles if score == max_score]
                     action = random.choice(best_moves)
 
-            # 2. MODEL-BASED LOGIC
+            # 2. MODEL-BASED LOGIC (Improved)
             elif agent_type == "Modell-basiert":
-                # Update Memory from Obs
-                # We need agent_pos for map building. 
-                # In Strict Mode, obs['agent_pos'] is None.
-                # We assume Perfect Odometry for the Model-Based Agent, so we use env.agent_pos 
-                # (which equals internal tracked position in a deterministic world).
-                current_r, current_c = env.agent_pos
-                
+                # Update Memory
+                current_memory = env.model_memory
                 if obs['mode'] == 'full':
-                    # Full Mode: All Grid is known
                     current_memory = {(r,c): obs['grid'][r,c] for r in range(env.height) for c in range(env.width)}
-                    target_pos = obs['goal_pos']
                 else:
-                    # Fog/Strict Mode: Update internal memory from view
                     view = obs['view']
                     for pos, val in view.items():
-                        if val != -1: # Ignore boundary
+                        if val != -1: 
                            env.model_memory[pos] = val
-                    current_memory = env.model_memory
-                    
-                    # Determine Goal
-                    # 1. Is Goal in Obs? (Radius 1)
-                    if obs['goal_pos']:
-                        target_pos = obs['goal_pos']
-                    else:
-                        # 2. Is Goal in Memory? (Previously seen)
-                        # Scan memory for value 2
-                        target_pos = None
-                        for pos, val in current_memory.items():
-                            if val == 2:
-                                target_pos = pos
-                                break
                 
-                # Plan Step
-                if target_pos:
-                    # Goal Known -> Plan to Goal
-                    action = get_model_based_action(env.agent_pos, target_pos, current_memory, env.height, env.width)
-                else:
-                    # Goal Unknown -> EXPLORE (Frontier)
-                    # Plan to nearest 'Unknown' (Candidate) or Random?
-                    # get_model_based_action defaults to random if goal not reached.
-                    # We need a "Plan to Unknown" function.
-                    # For simplicity: Random Walk until goal found?
-                    # User requirement: "Model-Based ... Strict Fog: kann erkundete Karte rekonstruieren -> deutlich stabiler als Reflex".
-                    # Random walk is not "deutlich stabiler".
-                    # Frontier Exploration is needed.
-                    # As a simplified proxy: Move to any neighbor that is NOT in memory (Unknown) or visited less?
-                    # Or just Random Walk with Wall Memory (avoid walls).
-                    # Let's use get_model_based_action with goal_pos=None to trigger random/safe walk?
-                    # No, let's implement true exploration later? 
-                    # For now: Random Walk allowing backtracking but avoiding known walls.
-                    # (Simple Model Based)
-                    
-                    # Better: Scan neighbors, prefer unknown.
-                    moves = [(-1,0), (1,0), (0,-1), (0,1)]
-                    candidates = []
-                    for i, (dr, dc) in enumerate(moves):
-                        nr, nc = current_r+dr, current_c+dc
-                        if 0 <= nr < env.height and 0 <= nr < env.width:
-                           val = current_memory.get((nr, nc)) # None if unknown
-                           if val == 1: continue # Wall
-                           # Prefer Unknown (None)
-                           prio = 10 if val is None else 1
-                           candidates.append((i, prio))
-                    
-                    if candidates:
-                        # Weighted random? Or max prio?
-                        max_p = max(c[1] for c in candidates)
-                        best = [c[0] for c in candidates if c[1] == max_p]
-                        action = random.choice(best)
-                    else:
-                        action = random.randint(0, 3)
+                # Goal Detection
+                target_pos = obs.get('goal_pos')
+                if not target_pos:
+                    for pos, val in current_memory.items():
+                        if val == 2:
+                            target_pos = pos
+                            break
+                
+                # Plan Step (Local Priority Logic handles exploration/stuck)
+                last_act = st.session_state.current_episode.get('last_action')
+                action = get_model_based_action(env, current_memory, target_pos, last_act)
 
             # 3. Q-LEARNING LOGIC
             elif agent_type == "Q-Learning":
