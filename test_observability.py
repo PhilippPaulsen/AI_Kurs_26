@@ -132,8 +132,32 @@ def test_model_based_planner():
     else:
         print(f"FAIL: Planner chose {action} instead of 3 (Right).")
 
+def test_q_agent_act_obs():
+    print("\n--- Test Q-Agent Act with Obs ---")
+    env = Environment(10, 10)
+    qa = QAgent(env, 0.5, 0.9, 0.1)
+    
+    # Test Full Mode
+    obs_full = env.get_observation(percept_enabled=False)
+    try:
+        action = qa.act(obs_full)
+        assert action in [0, 1, 2, 3]
+        print("PASS: Q-Agent acts correctly with Full Obs.")
+    except Exception as e:
+        print(f"FAIL: Q-Agent failed with Full Obs: {e}")
+
+    # Test Fog Mode
+    obs_fog = env.get_observation(percept_enabled=True)
+    try:
+        action = qa.act(obs_fog)
+        assert action in [0, 1, 2, 3]
+        print("PASS: Q-Agent acts correctly with Fog Obs.")
+    except Exception as e:
+        print(f"FAIL: Q-Agent failed with Fog Obs: {e}")
+
 if __name__ == "__main__":
     test_environment_randomization()
     test_get_observation()
     test_q_agent_splitting()
     test_model_based_planner()
+    test_q_agent_act_obs()

@@ -394,12 +394,17 @@ if not hasattr(st.session_state.env, 'reset_agent'):
 # --- 4. SIDEBAR ---
 
 
+# --- 4. SIDEBAR ---
+
 # Grid Resizer
 grid_n = st.sidebar.slider("Gittergröße N", 5, 20, 10)
 if grid_n != st.session_state.env.width:
     st.session_state.env = Environment(grid_n, grid_n)
     st.session_state.q_agent = None # Reset Q
     st.session_state.training_history = []
+
+# Percept Field Toggle (Moved up for availability)
+percept_enabled = st.sidebar.checkbox("Percept Field (Sichtfeld)", value=True, help="Wenn aktiv, sieht der Agent nur benachbarte Felder (Radius 1).")
 
 # Agent Select
 agent_type = st.sidebar.selectbox("Agenten Intelligenz", ["Manuell", "Reflex-Agent", "Modell-basiert", "Q-Learning"])
@@ -447,19 +452,22 @@ if agent_type == "Q-Learning":
             env.agent_pos = env.start_pos
             env.game_over = False
             env.visited = {env.start_pos}
+            env.model_memory = {} # Also reset memory if used
             
             steps = 0
             ep_return = 0
-            qa.prev_s = None # Reset previous state for new episode
+            qa.prev_state_key = None # Reset previous state for new episode
             
             # Run Episode
             while not env.game_over and steps < 200: # Limit steps
-                s = env.agent_pos
-                a = qa.act(s)
-                qa.post_step(s, a)
+                obs = env.get_observation(percept_enabled)
+                a = qa.act(obs)
+                qa.post_step(obs, a)
                 
-                next_s, r, done = env.step(a)
-                qa.learn(s, r, next_s)
+                _, r, done = env.step(a)
+                
+                next_obs = env.get_observation(percept_enabled)
+                qa.learn(obs, r, next_obs)
                 
                 steps += 1
                 ep_return += r
@@ -481,7 +489,6 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("Simulations-Steuerung")
 auto_run = st.sidebar.checkbox("Auto-Lauf (Simulation)", value=False)
 speed = st.sidebar.slider("Geschwindigkeit (Wartezeit in s)", 0.0, 1.0, 0.2)
-percept_enabled = st.sidebar.checkbox("Percept Field (Sichtfeld)", value=True, help="Wenn aktiv, sieht der Agent nur benachbarte Felder (Radius 1).")
 
 
 
