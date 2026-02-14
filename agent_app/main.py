@@ -1506,14 +1506,26 @@ if agent_type == "Q-Learning" and st.session_state.q_agent:
                                 val = st.session_state.env.grid[nr, nc]
                             syn_view[(nr, nc)] = val
                 
+                # 2. Synthesize Neighbors (Crucial for Q-Agent Fog/Strict Logic)
+                neighbors = []
+                for dr, dc in [(-1,0), (1,0), (0,-1), (0,1)]:
+                    nr, nc = r+dr, c+dc
+                    val = syn_view.get((nr, nc), -1)
+                    neighbors.append(val)
+
+                # 3. Handle Strict Mode Logic
+                syn_mode = 'strict' if strict_fog else 'fog'
+                syn_agent_pos = None if strict_fog else (r, c)
+                
                 # Synthesize Obs
                 syn_goal_pos = st.session_state.env.goal_pos if not strict_fog else None
                 syn_obs = {
-                    'mode': 'fog',
-                    'agent_pos': (r, c),
+                    'mode': syn_mode,
+                    'agent_pos': syn_agent_pos,
                     'goal_pos': syn_goal_pos,
                     'view': syn_view,
-                    'is_game_over': False # Irrelevant for state encoding
+                    'neighbors': tuple(neighbors),
+                    'is_game_over': False 
                 }
                 
                 # Query Agent
