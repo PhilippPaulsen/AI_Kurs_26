@@ -640,11 +640,17 @@ def render_grid_html(env, agent_type, percept_enabled, strict_fog=False, q_agent
                 q_vals = q_data[r, c]
                 best_q = np.max(q_vals)
                 if best_q != 0:
-                    intensity = int(min(255, max(50, (abs(best_q) / max_q_val) * 200))) 
-                    if best_q < -0.1: # Negative
-                         q_color = f"rgba(255, 0, 0, 0.3)"
-                    elif best_q > 0.1: # Positive
-                         q_color = f"rgba(0, {intensity}, 0, 0.5)"
+                    # Normalize intensity based on max_q_val
+                    # Use a non-linear scale for better visibility of small values
+                    norm_val = np.clip(best_q / (max_q_val if max_q_val > 0 else 1.0), -1.0, 1.0)
+                    
+                    if best_q < 0: # Negative -> RED
+                         # Intensity 50-255
+                         intensity = int(50 + abs(norm_val) * 205)
+                         q_color = f"rgba(255, 0, 0, {abs(norm_val)*0.5 + 0.1})" # dynamic alpha
+                    else: # Positive -> GREEN
+                         intensity = int(50 + abs(norm_val) * 205)
+                         q_color = f"rgba(0, 255, 0, {abs(norm_val)*0.5 + 0.1})"
 
             # Determine Symbol
             if is_visible:
@@ -1338,13 +1344,13 @@ if agent_type == "Q-Learning" and st.session_state.q_agent:
                 q_vals = qa.get_q(state_key)
                 q_grid[r, c] = np.max(q_vals)
                 
-        st.dataframe(pd.DataFrame(q_grid).style.background_gradient(cmap="Greens", axis=None))
-        st.caption("ℹ️ Projektion: Zeigt, wie gut der Agent die lokale Situation an jeder Position bewertet.")
+        st.dataframe(pd.DataFrame(q_grid).style.background_gradient(cmap="RdYlGn", axis=None, vmin=-1.0, vmax=1.0))
+        st.caption("ℹ️ Projektion: Zeigt, wie gut der Agent die lokale Situation an jeder Position bewertet. (Rot=Negativ, Grün=Positiv)")
 
     else:
         # Full Obs -> q_full matrix exists
         q_grid = np.max(st.session_state.q_agent.q_full, axis=2)
-        st.dataframe(pd.DataFrame(q_grid).style.background_gradient(cmap="Greens", axis=None))
+        st.dataframe(pd.DataFrame(q_grid).style.background_gradient(cmap="RdYlGn", axis=None, vmin=-1.0, vmax=1.0))
 
 # --- 7. LOGS ---
 st.markdown("---")
