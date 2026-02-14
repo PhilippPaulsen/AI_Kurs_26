@@ -252,7 +252,7 @@ if 'env' not in st.session_state:
         "Q-Learning": {'wins': 0, 'episodes': 0, 'total_steps': 0, 'total_return': 0.0}
     }
     # Current Episode Tracker
-    st.session_state.current_episode = {'steps': 0, 'return': 0.0, 'last_reward': 0.0}
+    st.session_state.current_episode = {'steps': 0, 'return': 0.0, 'last_reward': 0.0, 'last_action': None}
     # Training History for Q-Learning
     st.session_state.training_history = []
 
@@ -371,14 +371,14 @@ if st.sidebar.button("Reset Episode (Startpos)"):
     env.agent_pos = env.start_pos
     env.game_over = False
     env.visited = {env.start_pos}
-    st.session_state.current_episode = {'steps': 0, 'return': 0.0, 'last_reward': 0.0}
+    st.session_state.current_episode = {'steps': 0, 'return': 0.0, 'last_reward': 0.0, 'last_action': None}
     st.rerun()
 
 if st.sidebar.button("Brain Reset (Q-Table löschen)"):
     # Clear Q-Table, Keep Walls (Allow retraining on same map)
     st.session_state.q_agent = None
     st.session_state.training_history = []
-    st.session_state.current_episode = {'steps': 0, 'return': 0.0, 'last_reward': 0.0}
+    st.session_state.current_episode = {'steps': 0, 'return': 0.0, 'last_reward': 0.0, 'last_action': None}
     st.session_state.logs.append("🧠 **Brain Reset:** Alles vergessen!")
     st.rerun()
 
@@ -387,7 +387,7 @@ if st.sidebar.button("Neues Labyrinth (Full Reset)"):
     st.session_state.env = Environment(grid_n, grid_n, step_penalty=env_step_penalty, goal_reward=env_goal_reward, wall_penalty=env_wall_penalty)
     st.session_state.q_agent = None
     st.session_state.logs = []
-    st.session_state.current_episode = {'steps': 0, 'return': 0.0, 'last_reward': 0.0}
+    st.session_state.current_episode = {'steps': 0, 'return': 0.0, 'last_reward': 0.0, 'last_action': None}
     st.session_state.training_history = []
     st.rerun()
 
@@ -504,6 +504,7 @@ st.markdown('<div class="theory-box">', unsafe_allow_html=True)
 if agent_type == "Manuell":
     st.markdown('<div class="theory-title">MODUS: MANUELLE STEUERUNG</div>', unsafe_allow_html=True)
     st.write("Du bist der Agent. Das **Percept Field** ist dein Sichtbereich (Radius 1). Außerhalb davon ist alles 'Unobserved' (░).")
+    st.write("**Ziel:** Maximiere den Return in 20 Schritten.")
 elif agent_type == "Reflex-Agent":
     st.markdown('<div class="theory-title">MODUS: REFLEX-AGENT (Einfach)</div>', unsafe_allow_html=True)
     st.image(r"https://latex.codecogs.com/png.latex?\color{green}\text{Aktion}(p) = \text{Regel}[\text{Sensor}(p)]")
@@ -556,11 +557,20 @@ else:
 curr_ep = st.session_state.current_episode
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Schritte", curr_ep['steps'])
+c1.caption("Explorierst du gerade oder exploitierst du?")
+
 c2.metric("Current State", str(st.session_state.env.agent_pos))
+
 c3.metric("Immediate Reward (rₜ)", f"{curr_ep.get('last_reward', 0.0):.2f}")
+last_act = curr_ep.get('last_action')
+if last_act:
+    c3.write(f"**Last Action:** {last_act}")
+c3.caption("Reward = Bewertung der aktuellen Action.")
+
 c4.metric("Return (cumulative reward)", f"{curr_ep['return']:.2f}")
 
 st.caption("State = interne Repräsentation des Agenten (hier: Position im Environment).")
+st.info("Reflexionsfrage: Welche Information fehlt dir gerade, um optimal zu handeln?")
 
 # Agent Declaration
 if agent_type == "Manuell":
@@ -644,7 +654,8 @@ if agent_type != "Manuell":
                 
                 st.session_state.current_episode['steps'] += 1
                 st.session_state.current_episode['return'] += r
-                st.session_state.current_episode['last_reward'] = r                
+                st.session_state.current_episode['last_reward'] = r
+                st.session_state.current_episode['last_action'] = ["UP", "DOWN", "LEFT", "RIGHT"][action]                
                 if agent_type == "Q-Learning" and st.session_state.q_agent:
                     st.session_state.q_agent.learn(None, r, next_s)
                 
@@ -674,7 +685,8 @@ if agent_type == "Manuell" and action is not None and not env.game_over:
     
     st.session_state.current_episode['steps'] += 1
     st.session_state.current_episode['return'] += r
-    st.session_state.current_episode['last_reward'] = r    
+    st.session_state.current_episode['last_reward'] = r
+    st.session_state.current_episode['last_action'] = ["UP", "DOWN", "LEFT", "RIGHT"][action]    
     if done:
         st.balloons()
         st.session_state.logs.append("ZIEL ERREICHT!")
