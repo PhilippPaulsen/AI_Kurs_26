@@ -930,42 +930,7 @@ if agent_type != "Manuell":
                     max_score = max(possibles, key=lambda x: x[1])[1]
                     best_moves = [move for move, score in possibles if score == max_score]
                     action = random.choice(best_moves)
-                    view = obs['view']
-                    r, c = obs['agent_pos']
-                    
-                    for i, (dr, dc) in enumerate(direction_vecs):
-                        nr, nc = r+dr, c+dc
-                        
-                        # Can only evaluate if in View or Goal direction heuristic
-                        # Logic: If neighbor is known WALL -> Penalty. 
-                        # Use Goal heuristic if available.
-                        
-                        cell = view.get((nr, nc), -1) # -1 if unknown (out of view)
-                        
-                        score = 0
-                        if cell == 1: # Wall in View
-                             score = -9999
-                        elif cell == -1: # Unknown
-                             score = 0 # Neutral
-                        else: # Empty/Goal in View
-                             score = 0
-                        
-                        # Adds heuristic ONLY IF Goal is Known (Strict Fog kills this)
-                        if obs['goal_pos'] is not None:
-                            # Manhattan Heuristic (Guide)
-                            gr, gc = obs['goal_pos']
-                            dist_before = abs(r - gr) + abs(c - gc)
-                            dist_after = abs(nr - gr) + abs(nc - gc)
-                            if dist_after < dist_before:
-                                score += 10 # Good direction
-                            else:
-                                score -= 1 # Worse direction
-                        
-                        possibles.append((i, score))
-                max_score = max(possibles, key=lambda x: x[1])[1]
-                best_moves = [move for move, score in possibles if score == max_score]
-                action = random.choice(best_moves)
-            
+
             # 2. MODEL-BASED LOGIC
             elif agent_type == "Modell-basiert":
                 # Update Memory from Obs
